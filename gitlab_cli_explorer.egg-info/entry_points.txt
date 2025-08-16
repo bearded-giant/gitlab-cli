@@ -1,0 +1,3 @@
+[console_scripts]
+gitlab-cli = gitlab_cli.cli:main
+gl = gitlab_cli.cli:main
