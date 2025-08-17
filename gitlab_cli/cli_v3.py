@@ -96,9 +96,17 @@ class GitLabCLIv3:
             description='Show merge request information'
         )
         
+        # First positional can be 'detail' or MR IDs
         parser.add_argument(
             'mr_ids',
-            help='Merge request ID(s) - can be comma-separated (e.g., 1234 or 1234,5678)'
+            help='MR ID(s) (comma-separated) or "detail" followed by ID'
+        )
+        
+        # Optional second positional for detail ID
+        parser.add_argument(
+            'detail_id',
+            nargs='?',
+            help='MR ID when using detail command'
         )
         parser.add_argument(
             '--pipelines',
@@ -124,9 +132,17 @@ class GitLabCLIv3:
             description='Show pipeline information and job summaries'
         )
         
+        # First positional can be 'detail' or pipeline IDs
         parser.add_argument(
             'pipeline_ids',
-            help='Pipeline ID(s) - can be comma-separated'
+            help='Pipeline ID(s) (comma-separated) or "detail" followed by ID'
+        )
+        
+        # Optional second positional for detail ID
+        parser.add_argument(
+            'detail_id',
+            nargs='?',
+            help='Pipeline ID when using detail command'
         )
         
         # Status filters for drilling down
@@ -162,11 +178,6 @@ class GitLabCLIv3:
             help='Filter by stage name'
         )
         parser.add_argument(
-            '--detailed',
-            action='store_true',
-            help='Show detailed stage-by-stage view'
-        )
-        parser.add_argument(
             '--format',
             choices=['friendly', 'table', 'json'],
             help='Output format'
@@ -185,9 +196,17 @@ class GitLabCLIv3:
             description='Show job information and failure details'
         )
         
+        # First positional can be 'detail' or job IDs
         parser.add_argument(
             'job_ids',
-            help='Job ID(s) - can be comma-separated'
+            help='Job ID(s) (comma-separated) or "detail" followed by ID'
+        )
+        
+        # Optional second positional for detail ID
+        parser.add_argument(
+            'detail_id',
+            nargs='?',
+            help='Job ID when using detail command'
         )
         parser.add_argument(
             '--failures',
@@ -267,7 +286,10 @@ class GitLabCLIv3:
         print("  branches [name]      List MRs for a branch")
         print("  mrs <id,...>         Show MR summaries")
         print("  pipelines <id,...>   Show pipeline summaries")
+        print("  pipelines detail <id> Show comprehensive pipeline details")
         print("  jobs <id,...>        Show job summaries")
+        print("  jobs detail <id>     Show comprehensive job details")
+        print("  mrs detail <id>      Show comprehensive MR details")
         print("  config               Manage configuration")
         print("\nExamples:")
         print("  gl branches                       # List MRs for current branch")
@@ -303,16 +325,55 @@ class GitLabCLIv3:
             self.handle_branches(cli, args, output_format)
         
         elif args.area == 'mrs':
-            ids = self.parse_ids(args.mr_ids)
-            self.handle_mrs(cli, ids, args, output_format)
+            # Check if first arg is 'detail'
+            if args.mr_ids == 'detail':
+                if args.detail_id:
+                    try:
+                        mr_id = int(args.detail_id)
+                        self.handle_mr_detail(cli, mr_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid MR ID: {args.detail_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'detail' requires an MR ID")
+                    sys.exit(1)
+            else:
+                ids = self.parse_ids(args.mr_ids)
+                self.handle_mrs(cli, ids, args, output_format)
         
         elif args.area == 'pipelines':
-            ids = self.parse_ids(args.pipeline_ids)
-            self.handle_pipelines(cli, ids, args, output_format)
+            # Check if first arg is 'detail'
+            if args.pipeline_ids == 'detail':
+                if args.detail_id:
+                    try:
+                        pipeline_id = int(args.detail_id)
+                        self.handle_pipeline_detail(cli, pipeline_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid pipeline ID: {args.detail_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'detail' requires a pipeline ID")
+                    sys.exit(1)
+            else:
+                ids = self.parse_ids(args.pipeline_ids)
+                self.handle_pipelines(cli, ids, args, output_format)
         
         elif args.area == 'jobs':
-            ids = self.parse_ids(args.job_ids)
-            self.handle_jobs(cli, ids, args, output_format)
+            # Check if first arg is 'detail'
+            if args.job_ids == 'detail':
+                if args.detail_id:
+                    try:
+                        job_id = int(args.detail_id)
+                        self.handle_job_detail(cli, job_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid job ID: {args.detail_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'detail' requires a job ID")
+                    sys.exit(1)
+            else:
+                ids = self.parse_ids(args.job_ids)
+                self.handle_jobs(cli, ids, args, output_format)
     
     def handle_branches(self, cli, args, output_format):
         """Handle branch commands"""
@@ -336,15 +397,42 @@ class GitLabCLIv3:
     
     def handle_mrs(self, cli, ids, args, output_format):
         """Handle MR commands - show summaries by default"""
+        all_mrs = []
+        
         for mr_id in ids:
             if output_format == 'json':
                 # For JSON, collect all data
                 self.show_mr_json(cli, mr_id, args)
+            elif output_format == 'table':
+                # Collect for table display
+                try:
+                    mr = cli.explorer.project.mergerequests.get(mr_id)
+                    all_mrs.append({
+                        'iid': mr.iid,
+                        'state': mr.state,
+                        'author': mr.author['username'],
+                        'target': mr.target_branch,
+                        'created': mr.created_at[:10],
+                        'title': mr.title
+                    })
+                except Exception as e:
+                    print(f"Error fetching MR {mr_id}: {e}")
             else:
                 self.show_mr_summary(cli, mr_id, args, output_format)
             
-            if len(ids) > 1 and output_format != 'json':
+            if len(ids) > 1 and output_format == 'friendly':
                 print("-" * 80)
+        
+        if output_format == 'table' and all_mrs:
+            # Display MRs in table format
+            print("\nMerge Requests")
+            print("-" * 120)
+            print(f"{'MR':<8} {'State':<10} {'Author':<15} {'Target':<20} {'Created':<12} {'Title':<50}")
+            print("-" * 120)
+            for mr_info in all_mrs:
+                title = mr_info['title'][:47] + '...' if len(mr_info['title']) > 50 else mr_info['title']
+                print(f"!{mr_info['iid']:<7} {mr_info['state']:<10} {mr_info['author']:<15} {mr_info['target']:<20} {mr_info['created']:<12} {title:<50}")
+            print("-" * 120)
     
     def show_mr_summary(self, cli, mr_id, args, output_format):
         """Show MR summary"""
@@ -466,9 +554,43 @@ class GitLabCLIv3:
                     'pending': summary['pending']
                 }
             }
-            if args.detailed:
-                output['stages'] = summary['stages']
+            # Always include stages in JSON output
+            output['stages'] = summary['stages']
             print(json.dumps(output, indent=2))
+        elif output_format == 'table':
+            # Table format for pipeline summary
+            print(f"\nPipeline {pipeline_id} Summary")
+            print("-" * 60)
+            print(f"{'Status':<15} {summary['pipeline_status'].upper()}")
+            print(f"{'Created':<15} {summary['created_at'][:16]}")
+            print(f"{'Duration':<15} {cli.explorer.format_duration(summary['duration'])}")
+            print("-" * 60)
+            print(f"{'Job Status':<15} {'Count':>10}")
+            print("-" * 60)
+            print(f"{'Total':<15} {summary['total']:>10}")
+            if summary['success'] > 0:
+                print(f"{'Success':<15} {summary['success']:>10}")
+            if summary['failed'] > 0:
+                print(f"{'Failed':<15} {summary['failed']:>10}")
+            if summary['running'] > 0:
+                print(f"{'Running':<15} {summary['running']:>10}")
+            if summary['skipped'] > 0:
+                print(f"{'Skipped':<15} {summary['skipped']:>10}")
+            if summary['pending'] > 0:
+                print(f"{'Pending':<15} {summary['pending']:>10}")
+            print("-" * 60)
+            
+            # Show failed jobs in table format
+            if summary['failed_jobs']:
+                print("\nFailed Jobs:")
+                print("-" * 80)
+                print(f"{'ID':<12} {'Stage':<15} {'Name':<50}")
+                print("-" * 80)
+                for job in summary['failed_jobs'][:10]:
+                    name = job['name'][:47] + '...' if len(job['name']) > 50 else job['name']
+                    print(f"{job['id']:<12} {job['stage']:<15} {name:<50}")
+                if len(summary['failed_jobs']) > 10:
+                    print(f"... and {len(summary['failed_jobs']) - 10} more")
         else:
             # Friendly summary
             status_icon = {
@@ -493,7 +615,7 @@ class GitLabCLIv3:
             print()
             
             # Show failed jobs if any
-            if summary['failed_jobs'] and not args.detailed:
+            if summary['failed_jobs']:
                 print("\nFailed Jobs:")
                 for job in summary['failed_jobs'][:5]:
                     print(f"  ❌ {job['id']} - {job['name']} ({job['stage']})")
@@ -528,6 +650,15 @@ class GitLabCLIv3:
                         job_data['failures'] = details.get('failures', {})
                     
                     all_jobs.append(job_data)
+                elif output_format == 'table':
+                    # Collect for table display
+                    all_jobs.append({
+                        'id': job.id,
+                        'name': job.name,
+                        'status': job.status,
+                        'stage': job.stage,
+                        'duration': cli.explorer.format_duration(job.duration)
+                    })
                 else:
                     # Friendly summary
                     status_icon = {
@@ -560,6 +691,483 @@ class GitLabCLIv3:
         
         if output_format == 'json':
             print(json.dumps({'jobs': all_jobs}, indent=2))
+        elif output_format == 'table' and all_jobs:
+            # Display jobs in table format
+            print("\nJobs Summary")
+            print("-" * 100)
+            print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Duration':<10} {'Name':<50}")
+            print("-" * 100)
+            for job_info in all_jobs:
+                name = job_info['name'][:47] + '...' if len(job_info['name']) > 50 else job_info['name']
+                status_display = job_info['status'].upper()[:10]
+                print(f"{job_info['id']:<12} {status_display:<10} {job_info['stage']:<15} {job_info['duration']:<10} {name:<50}")
+            print("-" * 100)
+    
+    def handle_pipeline_detail(self, cli, pipeline_id, args, output_format):
+        """Handle pipeline detail subcommand - show comprehensive pipeline information"""
+        try:
+            # Get pipeline details
+            pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+            
+            # Get job summary
+            summary = cli.explorer.get_job_status_summary(pipeline_id, verbose=cli.verbose)
+            
+            if output_format == 'json':
+                # Comprehensive JSON output
+                output = {
+                    'id': pipeline.id,
+                    'iid': pipeline.iid if hasattr(pipeline, 'iid') else None,
+                    'status': pipeline.status,
+                    'ref': pipeline.ref,
+                    'sha': pipeline.sha,
+                    'source': pipeline.source,
+                    'created_at': pipeline.created_at,
+                    'updated_at': pipeline.updated_at,
+                    'started_at': pipeline.started_at,
+                    'finished_at': pipeline.finished_at,
+                    'duration': pipeline.duration,
+                    'queued_duration': pipeline.queued_duration if hasattr(pipeline, 'queued_duration') else None,
+                    'coverage': pipeline.coverage if hasattr(pipeline, 'coverage') else None,
+                    'web_url': pipeline.web_url,
+                    'user': {
+                        'username': pipeline.user['username'],
+                        'name': pipeline.user['name']
+                    } if hasattr(pipeline, 'user') and pipeline.user else None,
+                    'commit': {
+                        'message': pipeline.commit['message'] if hasattr(pipeline, 'commit') else None,
+                        'author': pipeline.commit.get('author_name') if hasattr(pipeline, 'commit') else None
+                    },
+                    'job_statistics': {
+                        'total': summary['total'],
+                        'failed': summary['failed'],
+                        'success': summary['success'],
+                        'running': summary['running'],
+                        'skipped': summary['skipped'],
+                        'pending': summary['pending']
+                    },
+                    'stages': summary['stages']
+                }
+                print(json.dumps(output, indent=2))
+            elif output_format == 'table':
+                # Table format for pipeline details
+                print(f"\nPipeline #{pipeline.id} Details")
+                print("=" * 80)
+                print(f"{'Field':<20} {'Value':<60}")
+                print("-" * 80)
+                print(f"{'Status':<20} {pipeline.status.upper()}")
+                print(f"{'Source':<20} {pipeline.source}")
+                print(f"{'Branch/Tag':<20} {pipeline.ref}")
+                print(f"{'SHA':<20} {pipeline.sha[:8]}")
+                if hasattr(pipeline, 'user') and pipeline.user:
+                    print(f"{'Started by':<20} {pipeline.user['name']} (@{pipeline.user['username']})")
+                print(f"{'Created':<20} {pipeline.created_at}")
+                print(f"{'Started':<20} {pipeline.started_at or 'Not started'}")
+                print(f"{'Finished':<20} {pipeline.finished_at or 'Still running'}")
+                print(f"{'Duration':<20} {cli.explorer.format_duration(pipeline.duration)}")
+                if hasattr(pipeline, 'queued_duration') and pipeline.queued_duration:
+                    print(f"{'Queued':<20} {cli.explorer.format_duration(pipeline.queued_duration)}")
+                print("-" * 80)
+                print(f"\nJob Statistics:")
+                print("-" * 40)
+                print(f"{'Status':<15} {'Count':>10}")
+                print("-" * 40)
+                print(f"{'Total':<15} {summary['total']:>10}")
+                if summary['success'] > 0:
+                    print(f"{'Success':<15} {summary['success']:>10}")
+                if summary['failed'] > 0:
+                    print(f"{'Failed':<15} {summary['failed']:>10}")
+                if summary['running'] > 0:
+                    print(f"{'Running':<15} {summary['running']:>10}")
+                if summary['skipped'] > 0:
+                    print(f"{'Skipped':<15} {summary['skipped']:>10}")
+                if summary['pending'] > 0:
+                    print(f"{'Pending':<15} {summary['pending']:>10}")
+                print("-" * 40)
+                print(f"\nURL: {pipeline.web_url}")
+            else:
+                # Friendly detailed output
+                status_icon = {
+                    'success': '✅',
+                    'failed': '❌',
+                    'running': '🔄',
+                    'canceled': '⏹',
+                    'skipped': '⏭'
+                }.get(pipeline.status, '⏸')
+                
+                print(f"\n{'='*60}")
+                print(f"Pipeline #{pipeline.id}")
+                print(f"{'='*60}\n")
+                
+                print(f"Status:       {status_icon} {pipeline.status.upper()}")
+                print(f"Source:       {pipeline.source}")
+                print(f"Branch/Tag:   {pipeline.ref}")
+                
+                if hasattr(pipeline, 'user') and pipeline.user:
+                    print(f"Started by:   {pipeline.user['name']} (@{pipeline.user['username']})")
+                
+                print(f"\nTiming:")
+                print(f"  Created:    {pipeline.created_at}")
+                print(f"  Started:    {pipeline.started_at or 'Not started'}")
+                print(f"  Finished:   {pipeline.finished_at or 'Still running'}")
+                print(f"  Duration:   {cli.explorer.format_duration(pipeline.duration)}")
+                if hasattr(pipeline, 'queued_duration') and pipeline.queued_duration:
+                    print(f"  Queued:     {cli.explorer.format_duration(pipeline.queued_duration)}")
+                
+                print(f"\nCommit:")
+                print(f"  SHA:        {pipeline.sha[:8]}")
+                if hasattr(pipeline, 'commit') and pipeline.commit:
+                    commit_msg = pipeline.commit['message'].split('\\n')[0][:60]
+                    print(f"  Message:    {commit_msg}")
+                    if 'author_name' in pipeline.commit:
+                        print(f"  Author:     {pipeline.commit['author_name']}")
+                
+                print(f"\nJob Statistics:")
+                print(f"  Total:      {summary['total']} jobs")
+                if summary['failed'] > 0:
+                    print(f"  Failed:     ❌ {summary['failed']}")
+                if summary['success'] > 0:
+                    print(f"  Success:    ✅ {summary['success']}")
+                if summary['running'] > 0:
+                    print(f"  Running:    🔄 {summary['running']}")
+                if summary['skipped'] > 0:
+                    print(f"  Skipped:    ⏭ {summary['skipped']}")
+                if summary['pending'] > 0:
+                    print(f"  Pending:    ⏸ {summary['pending']}")
+                
+                # Show stage breakdown
+                if summary['stages']:
+                    print(f"\nStages:")
+                    for stage_name, stage_info in summary['stages'].items():
+                        stage_icon = {
+                            'success': '✅',
+                            'failed': '❌',
+                            'running': '🔄',
+                            'skipped': '⏭'
+                        }.get(stage_info['status'], '⏸')
+                        print(f"  {stage_icon} {stage_name}: {stage_info['count']} jobs")
+                        if stage_info['failed_jobs']:
+                            for job in stage_info['failed_jobs'][:3]:
+                                print(f"      ❌ {job['id']} - {job['name']}")
+                
+                print(f"\nPipeline URL: {pipeline.web_url}")
+                
+        except Exception as e:
+            print(f"Error fetching pipeline {pipeline_id} details: {e}")
+    
+    def handle_job_detail(self, cli, job_id, args, output_format):
+        """Handle job detail subcommand - show comprehensive job information"""
+        try:
+            # Get job details
+            job = cli.explorer.project.jobs.get(job_id)
+            
+            if output_format == 'json':
+                # Comprehensive JSON output
+                output = {
+                    'id': job.id,
+                    'name': job.name,
+                    'status': job.status,
+                    'stage': job.stage,
+                    'ref': job.ref,
+                    'tag': job.tag,
+                    'created_at': job.created_at,
+                    'started_at': job.started_at,
+                    'finished_at': job.finished_at,
+                    'duration': job.duration,
+                    'queued_duration': getattr(job, 'queued_duration', None),
+                    'coverage': getattr(job, 'coverage', None),
+                    'allow_failure': job.allow_failure,
+                    'web_url': job.web_url,
+                    'artifacts': getattr(job, 'artifacts', None),
+                    'artifacts_expire_at': getattr(job, 'artifacts_expire_at', None)
+                }
+                
+                # Add runner info if available
+                runner_info = getattr(job, 'runner', None)
+                if runner_info:
+                    # Check if it's a method or property
+                    if callable(runner_info):
+                        runner_info = runner_info()
+                    if runner_info and isinstance(runner_info, dict):
+                        output['runner'] = {
+                            'id': runner_info.get('id'),
+                            'description': runner_info.get('description'),
+                            'active': runner_info.get('active'),
+                            'is_shared': runner_info.get('is_shared')
+                        }
+                    else:
+                        output['runner'] = None
+                else:
+                    output['runner'] = None
+                
+                # Add pipeline info if available
+                pipeline_info = getattr(job, 'pipeline', None)
+                if pipeline_info and isinstance(pipeline_info, dict):
+                    output['pipeline'] = {
+                        'id': pipeline_info.get('id'),
+                        'status': pipeline_info.get('status'),
+                        'ref': pipeline_info.get('ref'),
+                        'sha': pipeline_info.get('sha')
+                    }
+                else:
+                    output['pipeline'] = None
+                
+                # Add user info if available
+                user_info = getattr(job, 'user', None)
+                if user_info and isinstance(user_info, dict):
+                    output['user'] = {
+                        'username': user_info.get('username'),
+                        'name': user_info.get('name')
+                    }
+                else:
+                    output['user'] = None
+                
+                # Add failure details if failed
+                if job.status == 'failed':
+                    details = cli.explorer.get_failed_job_details(job_id)
+                    output['failure_reason'] = job.failure_reason if hasattr(job, 'failure_reason') else None
+                    output['failures'] = details.get('failures', {})
+                
+                print(json.dumps(output, indent=2))
+            else:
+                # Friendly detailed output
+                status_icon = {
+                    'success': '✅',
+                    'failed': '❌',
+                    'running': '🔄',
+                    'canceled': '⏹',
+                    'skipped': '⏭',
+                    'manual': '👆'
+                }.get(job.status, '⏸')
+                
+                print(f"\n{'='*60}")
+                print(f"{job.name}")
+                print(f"{'='*60}\n")
+                
+                print(f"Status:       {status_icon} {job.status.upper()}")
+                if job.status == 'failed' and hasattr(job, 'failure_reason'):
+                    print(f"Failure:      {job.failure_reason}")
+                
+                print(f"Stage:        {job.stage}")
+                print(f"Job ID:       {job.id}")
+                
+                if hasattr(job, 'user') and job.user:
+                    print(f"Started by:   {job.user['name']} (@{job.user['username']})")
+                
+                print(f"\nTiming:")
+                print(f"  Created:    {job.created_at}")
+                print(f"  Started:    {job.started_at or 'Not started'}")
+                print(f"  Finished:   {job.finished_at or 'Still running'}")
+                print(f"  Duration:   {cli.explorer.format_duration(job.duration)}")
+                if hasattr(job, 'queued_duration') and job.queued_duration:
+                    print(f"  Queued:     {cli.explorer.format_duration(job.queued_duration)}")
+                
+                if hasattr(job, 'coverage') and job.coverage:
+                    print(f"\nCoverage:     {job.coverage}%")
+                
+                runner_info = getattr(job, 'runner', None)
+                if runner_info:
+                    if callable(runner_info):
+                        runner_info = runner_info()
+                    if runner_info and isinstance(runner_info, dict):
+                        print(f"\nRunner:")
+                        print(f"  ID:         #{runner_info.get('id', 'N/A')}")
+                        print(f"  Name:       {runner_info.get('description', 'N/A')}")
+                        print(f"  Type:       {'Shared' if runner_info.get('is_shared') else 'Specific'}")
+                
+                print(f"\nSource:")
+                print(f"  Branch/Tag: {job.ref}")
+                print(f"  Commit:     {job.commit['short_id'] if hasattr(job, 'commit') else 'N/A'}")
+                
+                if hasattr(job, 'pipeline'):
+                    p_status_icon = {
+                        'success': '✅',
+                        'failed': '❌',
+                        'running': '🔄'
+                    }.get(job.pipeline['status'], '⏸')
+                    print(f"\nPipeline:")
+                    print(f"  ID:         #{job.pipeline['id']}")
+                    print(f"  Status:     {p_status_icon} {job.pipeline['status']}")
+                
+                if hasattr(job, 'artifacts') and job.artifacts:
+                    print(f"\nArtifacts:")
+                    for artifact in job.artifacts:
+                        print(f"  • {artifact.get('filename', 'Unknown')} ({artifact.get('size', 0)} bytes)")
+                    if hasattr(job, 'artifacts_expire_at') and job.artifacts_expire_at:
+                        print(f"  Expires:    {job.artifacts_expire_at}")
+                
+                # Show failure details if failed
+                if job.status == 'failed':
+                    details = cli.explorer.get_failed_job_details(job_id)
+                    failures = details.get('failures', {})
+                    if failures.get('short_summary'):
+                        print(f"\nFailure Details:")
+                        for line in failures['short_summary'].split('\n')[:10]:
+                            if line.strip():
+                                print(f"  {line.strip()}")
+                
+                print(f"\nJob URL: {job.web_url}")
+                
+        except Exception as e:
+            print(f"Error fetching job {job_id} details: {e}")
+    
+    def handle_mr_detail(self, cli, mr_id, args, output_format):
+        """Handle MR detail subcommand - show comprehensive MR information"""
+        try:
+            # Get MR details
+            mr = cli.explorer.project.mergerequests.get(mr_id)
+            
+            if output_format == 'json':
+                # Comprehensive JSON output
+                output = {
+                    'id': mr.id,
+                    'iid': mr.iid,
+                    'title': mr.title,
+                    'description': mr.description,
+                    'state': mr.state,
+                    'created_at': mr.created_at,
+                    'updated_at': mr.updated_at,
+                    'merged_at': mr.merged_at if hasattr(mr, 'merged_at') else None,
+                    'closed_at': mr.closed_at if hasattr(mr, 'closed_at') else None,
+                    'source_branch': mr.source_branch,
+                    'target_branch': mr.target_branch,
+                    'author': {
+                        'username': mr.author['username'],
+                        'name': mr.author['name']
+                    },
+                    'assignee': mr.assignee if hasattr(mr, 'assignee') else None,
+                    'assignees': mr.assignees if hasattr(mr, 'assignees') else [],
+                    'reviewers': mr.reviewers if hasattr(mr, 'reviewers') else [],
+                    'merge_user': mr.merge_user if hasattr(mr, 'merge_user') else None,
+                    'merge_status': mr.merge_status if hasattr(mr, 'merge_status') else None,
+                    'draft': mr.draft if hasattr(mr, 'draft') else False,
+                    'work_in_progress': mr.work_in_progress if hasattr(mr, 'work_in_progress') else False,
+                    'merge_when_pipeline_succeeds': mr.merge_when_pipeline_succeeds if hasattr(mr, 'merge_when_pipeline_succeeds') else False,
+                    'has_conflicts': mr.has_conflicts if hasattr(mr, 'has_conflicts') else False,
+                    'blocking_discussions_resolved': mr.blocking_discussions_resolved if hasattr(mr, 'blocking_discussions_resolved') else True,
+                    'approvals_before_merge': mr.approvals_before_merge if hasattr(mr, 'approvals_before_merge') else None,
+                    'reference': mr.reference,
+                    'web_url': mr.web_url,
+                    'labels': mr.labels,
+                    'milestone': mr.milestone if hasattr(mr, 'milestone') else None,
+                    'head_pipeline': mr.head_pipeline if hasattr(mr, 'head_pipeline') else None,
+                    'diff_stats': {
+                        'additions': mr.additions if hasattr(mr, 'additions') else 0,
+                        'deletions': mr.deletions if hasattr(mr, 'deletions') else 0,
+                        'total': (mr.additions if hasattr(mr, 'additions') else 0) + (mr.deletions if hasattr(mr, 'deletions') else 0)
+                    }
+                }
+                
+                # Get recent pipelines
+                pipelines = cli.explorer.get_pipelines_for_mr(mr_id)[:5]
+                if pipelines:
+                    output['recent_pipelines'] = pipelines
+                
+                print(json.dumps(output, indent=2))
+            else:
+                # Friendly detailed output
+                status_color = {
+                    'opened': '\033[92m',  # Green
+                    'merged': '\033[94m',  # Blue
+                    'closed': '\033[91m'   # Red
+                }.get(mr.state, '')
+                
+                print(f"\n{'='*60}")
+                print(f"MR !{mr.iid}: {mr.title}")
+                print(f"{'='*60}\n")
+                
+                print(f"Status:       {status_color}{mr.state.upper()}\033[0m")
+                if hasattr(mr, 'draft') and mr.draft:
+                    print(f"              📝 DRAFT")
+                
+                print(f"Author:       {mr.author['name']} (@{mr.author['username']})")
+                
+                if hasattr(mr, 'assignees') and mr.assignees:
+                    assignee_names = [f"@{a['username']}" for a in mr.assignees]
+                    print(f"Assignees:    {', '.join(assignee_names)}")
+                
+                if hasattr(mr, 'reviewers') and mr.reviewers:
+                    reviewer_names = [f"@{r['username']}" for r in mr.reviewers]
+                    print(f"Reviewers:    {', '.join(reviewer_names)}")
+                
+                print(f"\nBranches:")
+                print(f"  Source:     {mr.source_branch}")
+                print(f"  Target:     {mr.target_branch}")
+                
+                print(f"\nTiming:")
+                print(f"  Created:    {mr.created_at}")
+                print(f"  Updated:    {mr.updated_at}")
+                if hasattr(mr, 'merged_at') and mr.merged_at:
+                    print(f"  Merged:     {mr.merged_at}")
+                    if hasattr(mr, 'merge_user') and mr.merge_user:
+                        print(f"  Merged by:  @{mr.merge_user['username']}")
+                elif hasattr(mr, 'closed_at') and mr.closed_at:
+                    print(f"  Closed:     {mr.closed_at}")
+                
+                # Merge status
+                if mr.state == 'opened':
+                    print(f"\nMerge Status:")
+                    if hasattr(mr, 'has_conflicts') and mr.has_conflicts:
+                        print(f"  ❌ Has conflicts")
+                    if hasattr(mr, 'work_in_progress') and mr.work_in_progress:
+                        print(f"  📝 Work in progress")
+                    if hasattr(mr, 'merge_when_pipeline_succeeds') and mr.merge_when_pipeline_succeeds:
+                        print(f"  🔄 Set to merge when pipeline succeeds")
+                    if hasattr(mr, 'blocking_discussions_resolved'):
+                        if mr.blocking_discussions_resolved:
+                            print(f"  ✅ All discussions resolved")
+                        else:
+                            print(f"  💬 Unresolved discussions")
+                
+                # Diff stats
+                if hasattr(mr, 'additions') or hasattr(mr, 'deletions'):
+                    additions = mr.additions if hasattr(mr, 'additions') else 0
+                    deletions = mr.deletions if hasattr(mr, 'deletions') else 0
+                    print(f"\nChanges:")
+                    print(f"  Additions:  +{additions}")
+                    print(f"  Deletions:  -{deletions}")
+                    print(f"  Total:      {additions + deletions} lines")
+                
+                # Pipeline status
+                if hasattr(mr, 'head_pipeline') and mr.head_pipeline:
+                    p_status = mr.head_pipeline.get('status', 'unknown')
+                    p_color = {
+                        'success': '\033[92m✅',
+                        'failed': '\033[91m❌',
+                        'running': '\033[93m🔄'
+                    }.get(p_status, '⏸')
+                    print(f"\nCurrent Pipeline:")
+                    print(f"  {p_color} {p_status}\033[0m (ID: {mr.head_pipeline.get('id')})")
+                    print(f"  SHA: {mr.head_pipeline.get('sha', '')[:8]}")
+                
+                # Recent pipelines
+                pipelines = cli.explorer.get_pipelines_for_mr(mr_id)[:5]
+                if pipelines:
+                    print(f"\nRecent Pipelines:")
+                    for p in pipelines:
+                        status_icon = {'success': '✅', 'failed': '❌', 'running': '🔄'}.get(p['status'], '⏸')
+                        print(f"  {status_icon} {p['id']} - {p['status']} ({p['created_at'][:16]})")
+                
+                # Labels
+                if mr.labels:
+                    print(f"\nLabels: {', '.join(mr.labels)}")
+                
+                # Milestone
+                if hasattr(mr, 'milestone') and mr.milestone:
+                    print(f"Milestone: {mr.milestone['title']}")
+                
+                # Description preview
+                if mr.description:
+                    print(f"\nDescription (preview):")
+                    desc_lines = mr.description.split('\n')[:5]
+                    for line in desc_lines:
+                        print(f"  {line[:80]}")
+                    if len(mr.description.split('\n')) > 5:
+                        print(f"  ... (truncated)")
+                
+                print(f"\nMR URL: {mr.web_url}")
+                
+        except Exception as e:
+            print(f"Error fetching MR {mr_id} details: {e}")
     
     def handle_config(self, args):
         """Handle configuration commands"""
