@@ -4,22 +4,37 @@ A command-line tool for exploring GitLab pipeline and job statuses, designed for
 
 ## Installation
 
-### Method 1: Install from source (recommended for development)
+### Method 1: Install with pipx (Recommended - Available Everywhere)
 ```bash
-# Clone and install in development mode
+# Install pipx if you don't have it
+brew install pipx  # macOS with Homebrew
+# or
+python3 -m pip install --user pipx
+
+pipx ensurepath  # Add pipx binaries to PATH
+
+# Install gitlab-cli globally
+git clone <repo-url>
+cd gitlab-cli
+pipx install -e .
+```
+
+This makes `gitlab-cli` and `gl` available in all directories and projects, regardless of virtual environment.
+
+### Method 2: Install from source (for development)
+```bash
+# Clone and install in your virtual environment
 git clone <repo-url>
 cd gitlab-cli
 pip install -e .
 ```
 
-### Method 2: Install as package
-```bash
-cd gitlab-cli
-pip install .
-```
+Note: With Method 2, the tool is only available when the virtual environment is activated.
 
 ### Method 3: Install directly from git
 ```bash
+pipx install git+https://github.com/yourusername/gitlab-cli.git
+# or in a virtual environment:
 pip install git+https://github.com/yourusername/gitlab-cli.git
 ```
 
@@ -27,19 +42,40 @@ pip install git+https://github.com/yourusername/gitlab-cli.git
 
 ### Required Environment Variables
 ```bash
-export GITLAB_URL=https://gitlab.example.com
-export GITLAB_TOKEN=your_personal_access_token
-export GITLAB_PROJECT=group/project
+export GITLAB_URL=https://gitlab.example.com  # Your GitLab instance URL
+export GITLAB_TOKEN=your_personal_access_token  # Create at GitLab > Settings > Access Tokens
 ```
 
-### Alternative: Config File
-```bash
-# Set configuration via CLI
-gitlab-cli config --gitlab-url https://gitlab.example.com
-gitlab-cli config --project group/project
+### Auto-Detection of Project
+The tool automatically detects the GitLab project from your git remote URL. No need to set `GITLAB_PROJECT` manually!
 
+```bash
+# Just cd into any GitLab repository and run commands
+cd /path/to/your/gitlab/repo
+gl branch $(git branch --show-current)
+```
+
+The auto-detection works with:
+- Standard projects: `group/project`
+- Nested groups: `engineering/foo/bar`
+- Monorepos: `engineering/monolith`
+
+### Manual Project Override (Optional)
+```bash
+# Only needed if auto-detection doesn't work or you want to query a different project
+export GITLAB_PROJECT=group/project
+
+# Or set via config file
+gitlab-cli config --project group/project
+```
+
+### Config File
+```bash
 # View current configuration
 gitlab-cli config --show
+
+# Set GitLab URL (persisted to config file)
+gitlab-cli config --gitlab-url https://gitlab.example.com
 ```
 
 Configuration is stored in `~/.config/gitlab-cli/config.json`
@@ -60,77 +96,101 @@ gl branch $(git branch --show-current)
 gl status 123456 --detailed
 ```
 
+## Command Structure
+
+GitLab CLI follows a consistent pattern: `gl <area> <action> [options]`
+
+### Quick Help
+```bash
+gl --help                # Show all areas
+gl branch --help         # Show branch commands
+gl mr --help            # Show MR commands
+gl pipeline --help      # Show pipeline commands
+gl job --help           # Show job commands
+gl config --help        # Show config commands
+```
+
 ## Commands
 
-### 1. Get MRs for a Branch
+### Branch Commands
 
 ```bash
-# List all open MRs for current git branch
-./pipeline_explorer.py branch $(git branch --show-current)
+# List MRs for current branch
+gl branch list
 
 # List MRs for specific branch
-./pipeline_explorer.py branch feature-xyz
+gl branch list feature-xyz
 
-# Show all MRs (opened, merged, closed)
-./pipeline_explorer.py branch feature-xyz --state all
+# Filter by state
+gl branch list --state all
+gl branch list --state merged
 
-# Show latest MR and pipeline IDs
-./pipeline_explorer.py branch $(git branch --show-current) --latest
+# Show only latest MR
+gl branch list --latest
 ```
 
-### 2. Get Pipelines for a Merge Request
+### Merge Request Commands
 
 ```bash
-# List all pipelines for MR #1234
-./pipeline_explorer.py mr 1234
+# Show detailed MR information
+gl mr show 1234
 
-# Show latest pipeline ID
-./pipeline_explorer.py mr 1234 --latest
+# Show MR with recent pipelines
+gl mr show 1234 --pipelines
+
+# List all pipelines for an MR
+gl mr pipelines 1234
+
+# Show only latest pipeline
+gl mr pipelines 1234 --latest
 ```
 
-### 2. Get Pipeline Status Summary
+### Pipeline Commands
 
 ```bash
-# Show job status summary for pipeline
-./pipeline_explorer.py status 567890
+# Show pipeline status summary
+gl pipeline status 567890
+
+# Show detailed stage-by-stage view
+gl pipeline status 567890 --detailed
+
+# List all jobs in a pipeline
+gl pipeline jobs 567890
+
+# Filter jobs by status
+gl pipeline jobs 567890 --status failed
+
+# Filter jobs by stage
+gl pipeline jobs 567890 --stage test
+
+# Sort jobs
+gl pipeline jobs 567890 --sort duration
 ```
 
-Shows:
-- Total job count
-- Status breakdown (success, failed, running, etc.)
-- List of failed jobs with details
-
-### 3. List Jobs in a Pipeline
+### Job Commands
 
 ```bash
-# List all jobs
-./pipeline_explorer.py jobs 567890
+# Show job details and failures
+gl job show 123456
 
-# Filter by status
-./pipeline_explorer.py jobs 567890 --status failed
+# Show verbose failure information
+gl job show 123456 --verbose
 
-# Filter by stage
-./pipeline_explorer.py jobs 567890 --stage test
-
-# Sort by duration (longest first)
-./pipeline_explorer.py jobs 567890 --sort duration
+# Batch analyze multiple failed jobs
+gl job batch 123456 123457 123458
 ```
 
-### 4. Get Job Failure Details
+### Configuration Commands
 
 ```bash
-# Show condensed failure info
-./pipeline_explorer.py failures 123456
+# Show current configuration
+gl config show
 
-# Show verbose failure details
-./pipeline_explorer.py failures 123456 --verbose
-```
+# Set GitLab URL
+gl config set --gitlab-url https://gitlab.example.com
 
-### 5. Batch Process Failed Jobs
-
-```bash
-# Get failures for multiple jobs at once
-./pipeline_explorer.py batch-failures 123456 123457 123458
+# Set project (rarely needed with auto-detection)
+gl config set --project group/project
 ```
 
 ## Example Workflows
@@ -139,17 +199,20 @@ Shows:
 
 ```bash
 # 1. Find MRs for your current branch
-./pipeline_explorer.py branch $(git branch --show-current) --latest
+gl branch list --latest
 
-# 2. Get pipelines for the MR (using MR ID from step 1)
-./pipeline_explorer.py mr 5678 --latest
+# 2. Show MR details (using MR ID from step 1)
+gl mr show 5678
 
-# 3. Check status of the pipeline (using pipeline ID from step 2)
-./pipeline_explorer.py status 987654
+# 3. Get pipelines for the MR
+gl mr pipelines 5678 --latest
 
-# 4. If there are failures, get details
-./pipeline_explorer.py jobs 987654 --status failed
-./pipeline_explorer.py failures 111222 --verbose
+# 4. Check pipeline status (using pipeline ID from step 3)
+gl pipeline status 987654
+
+# 5. If there are failures, get details
+gl pipeline jobs 987654 --status failed
+gl job show 111222 --verbose
 ```
 
 ### Automated Pipeline Watching
@@ -169,23 +232,25 @@ This will:
 4. Show failed job details automatically
 5. Stop when pipeline completes
 
-### Manual Workflow
+Note: The watch script needs updating to use `gl` instead of direct Python script.
+
+### Direct Pipeline Investigation
 
 ```bash
-# 1. Find pipelines for your MR
-./pipeline_explorer.py mr 5678
+# 1. Show all pipelines for an MR
+gl mr pipelines 5678
 
-# 2. Check status of the latest pipeline (e.g., 987654)
-./pipeline_explorer.py status 987654
+# 2. Check status of a specific pipeline
+gl pipeline status 987654
 
 # 3. List failed jobs in that pipeline
-./pipeline_explorer.py jobs 987654 --status failed
+gl pipeline jobs 987654 --status failed
 
 # 4. Get details on specific failed job
-./pipeline_explorer.py failures 111222 --verbose
+gl job show 111222 --verbose
 
 # 5. Or check multiple failed jobs at once
-./pipeline_explorer.py batch-failures 111222 111223 111224
+gl job batch 111222 111223 111224
 ```
 
 ## Features

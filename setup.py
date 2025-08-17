@@ -36,8 +36,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "gitlab-cli=gitlab_cli.cli:main",
-            "gl=gitlab_cli.cli:main",  # Short alias
+            "gitlab-cli=gitlab_cli.cli_v3:main",
+            "gl=gitlab_cli.cli_v3:main",  # Short alias
         ],
     },
     include_package_data=True,

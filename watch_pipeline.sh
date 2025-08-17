@@ -5,6 +5,13 @@
 
 REFRESH_INTERVAL=${1:-30}  # Default 30 seconds
 
+# Check if gl command is available
+if ! command -v gl &> /dev/null; then
+    echo "Error: 'gl' command not found. Please install gitlab-cli first:"
+    echo "  pipx install -e /path/to/gitlab-cli"
+    exit 1
+fi
+
 # Get current branch
 BRANCH=$(git branch --show-current)
 if [ -z "$BRANCH" ]; then
@@ -16,7 +23,7 @@ echo "🔍 Finding MRs for branch: $BRANCH"
 echo ""
 
 # Get MRs for current branch
-MR_OUTPUT=$(./pipeline_explorer.py branch "$BRANCH" --latest 2>&1)
+MR_OUTPUT=$(gl branch "$BRANCH" --latest 2>&1)
 echo "$MR_OUTPUT"
 
 # Extract MR ID from output
@@ -41,7 +48,7 @@ if [ -z "$PIPELINE_ID" ]; then
     # Poll for pipeline creation
     while [ -z "$PIPELINE_ID" ]; do
         sleep 5
-        PIPELINE_OUTPUT=$(./pipeline_explorer.py mr "$MR_ID" --latest 2>&1)
+        PIPELINE_OUTPUT=$(gl mr "$MR_ID" --latest 2>&1)
         PIPELINE_ID=$(echo "$PIPELINE_OUTPUT" | grep "Latest pipeline:" | sed -n 's/.*Latest pipeline: \([0-9]*\).*/\1/p')
     done
     echo "✅ Pipeline created: $PIPELINE_ID"
@@ -61,23 +68,23 @@ while true; do
     echo ""
     
     # Get pipeline status (detailed view for better progress tracking)
-    ./pipeline_explorer.py status "$PIPELINE_ID" --detailed
+    gl status "$PIPELINE_ID" --detailed
     
     # Check if there are failed jobs
-    FAILED_JOBS=$(./pipeline_explorer.py jobs "$PIPELINE_ID" --status failed 2>&1 | grep -E "^[0-9]+" | awk '{print $1}')
+    FAILED_JOBS=$(gl jobs "$PIPELINE_ID" --status failed 2>&1 | grep -E "^[0-9]+" | awk '{print $1}')
     
     if [ ! -z "$FAILED_JOBS" ]; then
         echo ""
         echo "❌ Failed Jobs Details:"
         echo "-" | sed 's/./=/g'
         for JOB_ID in $FAILED_JOBS; do
-            ./pipeline_explorer.py failures "$JOB_ID" 2>&1 | head -20
+            gl failures "$JOB_ID" 2>&1 | head -20
             echo ""
         done
     fi
     
     # Check completion status
-    STATUS=$(./pipeline_explorer.py status "$PIPELINE_ID" 2>&1 | grep -E "Running:|Pending:" | grep -E "[1-9]")
+    STATUS=$(gl status "$PIPELINE_ID" 2>&1 | grep -E "Running:|Pending:" | grep -E "[1-9]")
     if [ -z "$STATUS" ]; then
         echo ""
         echo "✅ Pipeline completed!"

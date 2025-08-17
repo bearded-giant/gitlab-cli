@@ -119,15 +119,24 @@ class GitLabExplorer:
             print(f"Error fetching pipelines for MR {mr_id}: {e}")
             return []
 
-    def get_pipeline_details(self, pipeline_id: int, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+    def get_pipeline_details(self, pipeline_id: int, use_cache: bool = True, verbose: bool = False) -> Optional[Dict[str, Any]]:
         """Get detailed information about a pipeline."""
         # Check cache first
         if use_cache:
+            if verbose:
+                import time
+                start = time.time()
             cached = self.get_pipeline_from_cache(pipeline_id)
             if cached:
+                if verbose:
+                    print(f"✓ Retrieved pipeline {pipeline_id} from cache ({time.time() - start:.3f}s)")
                 return cached
+            elif verbose:
+                print(f"✗ Pipeline {pipeline_id} not in cache ({time.time() - start:.3f}s)")
 
         # Fetch from API
+        if verbose:
+            print(f"→ Fetching pipeline {pipeline_id} from GitLab API...")
         try:
             pipeline = self.project.pipelines.get(pipeline_id)
             jobs = pipeline.jobs.list(all=True)
@@ -140,6 +149,10 @@ class GitLabExplorer:
             # Cache if complete
             if pipeline.attributes.get('status', '').lower() in COMPLETE_STATUSES:
                 self.save_pipeline_to_cache(pipeline_id, data)
+                if verbose:
+                    print(f"✓ Cached completed pipeline {pipeline_id} (status: {pipeline.attributes.get('status')})")
+            elif verbose:
+                print(f"✗ Not caching pipeline {pipeline_id} (status: {pipeline.attributes.get('status')} - still running)")
             
             return data
         except Exception as e:
@@ -170,9 +183,9 @@ class GitLabExplorer:
         conn.commit()
         conn.close()
 
-    def get_job_status_summary(self, pipeline_id: int) -> Dict[str, Any]:
+    def get_job_status_summary(self, pipeline_id: int, verbose: bool = False) -> Dict[str, Any]:
         """Get a summary of job statuses for a pipeline."""
-        data = self.get_pipeline_details(pipeline_id)
+        data = self.get_pipeline_details(pipeline_id, verbose=verbose)
         if not data:
             return {}
         
@@ -332,9 +345,11 @@ class GitLabExplorer:
 
 
 class PipelineCLI:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, verbose: bool = False):
         self.config = config
         self.explorer = GitLabExplorer(config)
+        self.verbose = verbose
+        self.default_format = config.default_format
 
     def cmd_branch_mrs(self, args):
         """List merge requests for a branch."""
@@ -387,6 +402,95 @@ class PipelineCLI:
             if latest_mr['pipeline_id']:
                 print(f"Latest pipeline: {latest_mr['pipeline_id']} (status: {latest_mr['pipeline_status']})")
 
+    def cmd_mr_info(self, args):
+        """Get detailed information about a merge request."""
+        try:
+            mr = self.explorer.project.mergerequests.get(args.mr_id)
+            
+            # Determine status color
+            if mr.state == 'opened':
+                state_display = f"\033[92m{mr.state.upper()}\033[0m"  # Green
+            elif mr.state == 'merged':
+                state_display = f"\033[94m{mr.state.upper()}\033[0m"  # Blue
+            elif mr.state == 'closed':
+                state_display = f"\033[91m{mr.state.upper()}\033[0m"  # Red
+            else:
+                state_display = mr.state.upper()
+            
+            print(f"\n{'='*80}")
+            print(f"MR !{mr.iid}: {mr.title}")
+            print(f"{'='*80}")
+            print(f"Status:        {state_display}")
+            print(f"Author:        {mr.author['username']} ({mr.author['name']})")
+            print(f"Source Branch: {mr.source_branch}")
+            print(f"Target Branch: {mr.target_branch}")
+            print(f"Created:       {mr.created_at}")
+            print(f"Updated:       {mr.updated_at}")
+            
+            if hasattr(mr, 'merged_at') and mr.merged_at:
+                print(f"Merged:        {mr.merged_at}")
+                if hasattr(mr, 'merged_by') and mr.merged_by:
+                    print(f"Merged By:     {mr.merged_by['username']}")
+            
+            # Merge status
+            if mr.state == 'opened':
+                merge_status = getattr(mr, 'merge_status', 'unknown')
+                if merge_status == 'can_be_merged':
+                    merge_display = "\033[92m✅ Can be merged\033[0m"
+                elif merge_status == 'cannot_be_merged':
+                    merge_display = "\033[91m❌ Cannot be merged (conflicts)\033[0m"
+                else:
+                    merge_display = f"⚠️  {merge_status}"
+                print(f"Merge Status:  {merge_display}")
+                
+                if hasattr(mr, 'has_conflicts') and mr.has_conflicts:
+                    print(f"Conflicts:     \033[91m⚠️  Has conflicts\033[0m")
+            
+            # Pipeline status
+            if hasattr(mr, 'head_pipeline') and mr.head_pipeline:
+                pipeline_status = mr.head_pipeline.get('status', 'unknown')
+                if pipeline_status == 'success':
+                    pipeline_display = f"\033[92m✅ {pipeline_status}\033[0m"
+                elif pipeline_status == 'failed':
+                    pipeline_display = f"\033[91m❌ {pipeline_status}\033[0m"
+                elif pipeline_status == 'running':
+                    pipeline_display = f"\033[93m🔄 {pipeline_status}\033[0m"
+                else:
+                    pipeline_display = pipeline_status
+                print(f"Pipeline:      {pipeline_display} (ID: {mr.head_pipeline.get('id')})")
+            
+            # Approvals
+            if hasattr(mr, 'approvals_required'):
+                approvals = mr.approvals.get()
+                approved_by = [u['user']['username'] for u in approvals.approved_by] if hasattr(approvals, 'approved_by') else []
+                approval_status = f"{len(approved_by)}/{approvals.approvals_required}"
+                if len(approved_by) >= approvals.approvals_required:
+                    print(f"Approvals:     \033[92m✅ {approval_status}\033[0m - {', '.join(approved_by)}")
+                else:
+                    print(f"Approvals:     ⏸ {approval_status}" + (f" - {', '.join(approved_by)}" if approved_by else ""))
+            
+            print(f"Web URL:       {mr.web_url}")
+            
+            # Description
+            if mr.description:
+                print(f"\nDescription:")
+                print("-" * 40)
+                # Limit description to first 500 chars or 10 lines
+                desc_lines = mr.description.split('\n')[:10]
+                desc_text = '\n'.join(desc_lines)
+                if len(desc_text) > 500:
+                    desc_text = desc_text[:500] + "..."
+                print(desc_text)
+            
+            # Show recent pipelines if requested
+            if args.pipelines:
+                print(f"\n{'='*80}")
+                print("Recent Pipelines:")
+                self.cmd_mr_pipelines(args)
+                
+        except Exception as e:
+            print(f"Error fetching MR {args.mr_id}: {e}")
+    
     def cmd_mr_pipelines(self, args):
         """List pipelines for a merge request."""
         pipelines = self.explorer.get_pipelines_for_mr(args.mr_id)
@@ -395,12 +499,13 @@ class PipelineCLI:
             print(f"No pipelines found for MR {args.mr_id}")
             return
         
-        print(f"\nPipelines for MR #{args.mr_id}:")
+        if not hasattr(args, 'pipelines') or not args.pipelines:
+            print(f"\nPipelines for MR #{args.mr_id}:")
         print("-" * 80)
         print(f"{'ID':<10} {'Status':<12} {'Ref':<30} {'SHA':<10} {'Created'}")
         print("-" * 80)
         
-        for p in pipelines:
+        for p in pipelines[:10]:  # Limit to 10 most recent
             created = datetime.fromisoformat(p['created_at'].replace('Z', '+00:00'))
             created_str = created.strftime('%Y-%m-%d %H:%M')
             
@@ -422,10 +527,39 @@ class PipelineCLI:
 
     def cmd_pipeline_status(self, args):
         """Show job status summary for a pipeline."""
-        summary = self.explorer.get_job_status_summary(args.pipeline_id)
+        summary = self.explorer.get_job_status_summary(args.pipeline_id, verbose=self.verbose)
         
         if not summary:
             print(f"Could not fetch pipeline {args.pipeline_id}")
+            return
+        
+        # Check output format (use configured default if not specified)
+        output_format = getattr(args, 'format', self.default_format)
+        
+        if output_format == 'json':
+            # JSON output for scripting
+            import json
+            output = {
+                'pipeline_id': args.pipeline_id,
+                'status': summary['pipeline_status'],
+                'created_at': summary['created_at'],
+                'updated_at': summary['updated_at'],
+                'duration': summary['duration'],
+                'progress': summary['progress'],
+                'job_counts': {
+                    'total': summary['total'],
+                    'success': summary['success'],
+                    'failed': summary['failed'],
+                    'running': summary['running'],
+                    'pending': summary['pending'],
+                    'canceled': summary['canceled'],
+                    'skipped': summary['skipped'],
+                    'manual': summary['manual']
+                },
+                'failed_jobs': summary['failed_jobs'],
+                'stages': summary['stages']
+            }
+            print(json.dumps(output, indent=2))
             return
         
         # Pipeline header with progress bar
@@ -543,7 +677,7 @@ class PipelineCLI:
 
     def cmd_pipeline_jobs(self, args):
         """List all jobs in a pipeline with optional filtering."""
-        data = self.explorer.get_pipeline_details(args.pipeline_id)
+        data = self.explorer.get_pipeline_details(args.pipeline_id, verbose=self.verbose)
         
         if not data:
             print(f"Could not fetch pipeline {args.pipeline_id}")
@@ -552,44 +686,79 @@ class PipelineCLI:
         jobs = data.get('jobs', [])
         
         # Filter by status if specified
-        if args.status:
+        if hasattr(args, 'status') and args.status:
             jobs = [j for j in jobs if j.get('status', '').lower() == args.status.lower()]
         
         # Filter by stage if specified
-        if args.stage:
+        if hasattr(args, 'stage') and args.stage:
             jobs = [j for j in jobs if j.get('stage', '').lower() == args.stage.lower()]
         
         # Sort jobs
-        if args.sort == 'duration':
+        sort_field = getattr(args, 'sort', 'created')
+        if sort_field == 'duration':
             jobs.sort(key=lambda x: x.get('duration', 0) or 0, reverse=True)
-        elif args.sort == 'name':
+        elif sort_field == 'name':
             jobs.sort(key=lambda x: x.get('name', ''))
         else:  # Default: by created_at
             jobs.sort(key=lambda x: x.get('created_at', ''))
         
-        print(f"\nJobs in Pipeline {args.pipeline_id}:")
-        print("-" * 100)
-        print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Name':<40} {'Duration':<10} {'Finished'}")
-        print("-" * 100)
+        # Output format (use configured default if not specified)
+        output_format = getattr(args, 'format', self.default_format)
         
-        for job in jobs:
-            status = job.get('status', 'unknown')
-            # Color-code status
-            if status == 'success':
-                status_display = f"\033[92m{status:<10}\033[0m"
-            elif status == 'failed':
-                status_display = f"\033[91m{status:<10}\033[0m"
-            elif status == 'running':
-                status_display = f"\033[93m{status:<10}\033[0m"
-            else:
-                status_display = f"{status:<10}"
+        if output_format == 'json':
+            # JSON output for scripting
+            import json
+            output = {
+                'pipeline_id': args.pipeline_id,
+                'total_jobs': len(jobs),
+                'jobs': []
+            }
+            for job in jobs:
+                output['jobs'].append({
+                    'id': job['id'],
+                    'name': job['name'],
+                    'status': job['status'],
+                    'stage': job.get('stage', ''),
+                    'duration': job.get('duration'),
+                    'created_at': job.get('created_at', ''),
+                    'started_at': job.get('started_at', ''),
+                    'finished_at': job.get('finished_at', ''),
+                    'web_url': job.get('web_url', '')
+                })
+            print(json.dumps(output, indent=2))
             
-            duration = self.explorer.format_duration(job.get('duration'))
-            finished = job.get('finished_at', '')
-            if finished:
-                finished = datetime.fromisoformat(finished.replace('Z', '+00:00')).strftime('%H:%M:%S')
+        elif output_format == 'table':
+            # Pure table output (no colors, fixed width)
+            print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Name':<40} {'Duration':<10}")
+            print("-" * 87)
+            for job in jobs:
+                duration = self.explorer.format_duration(job.get('duration'))
+                print(f"{job['id']:<12} {job['status']:<10} {job.get('stage', ''):<15} {job['name'][:40]:<40} {duration:<10}")
+                
+        else:  # friendly (default)
+            print(f"\nJobs in Pipeline {args.pipeline_id}:")
+            print("-" * 100)
+            print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Name':<40} {'Duration':<10} {'Finished'}")
+            print("-" * 100)
             
-            print(f"{job['id']:<12} {status_display} {job.get('stage', ''):<15} {job['name'][:40]:<40} {duration:<10} {finished}")
+            for job in jobs:
+                status = job.get('status', 'unknown')
+                # Color-code status
+                if status == 'success':
+                    status_display = f"\033[92m{status:<10}\033[0m"
+                elif status == 'failed':
+                    status_display = f"\033[91m{status:<10}\033[0m"
+                elif status == 'running':
+                    status_display = f"\033[93m{status:<10}\033[0m"
+                else:
+                    status_display = f"{status:<10}"
+                
+                duration = self.explorer.format_duration(job.get('duration'))
+                finished = job.get('finished_at', '')
+                if finished:
+                    finished = datetime.fromisoformat(finished.replace('Z', '+00:00')).strftime('%H:%M:%S')
+                
+                print(f"{job['id']:<12} {status_display} {job.get('stage', ''):<15} {job['name'][:40]:<40} {duration:<10} {finished}")
 
     def cmd_job_failures(self, args):
         """Show detailed failure information for a job."""
@@ -713,6 +882,12 @@ Examples:
         mr_parser.add_argument('mr_id', type=int, help='Merge request ID')
         mr_parser.add_argument('--latest', action='store_true', help='Show latest pipeline ID')
         
+        # MR info command
+        mr_info_parser = subparsers.add_parser('mr-info', help='Get detailed information about a merge request')
+        mr_info_parser.add_argument('mr_id', type=int, help='Merge request ID')
+        mr_info_parser.add_argument('--pipelines', '-p', action='store_true', 
+                                   help='Also show recent pipelines')
+        
         # Pipeline status command
         status_parser = subparsers.add_parser('status', help='Get job status summary for a pipeline')
         status_parser.add_argument('pipeline_id', type=int, help='Pipeline ID')
@@ -748,6 +923,8 @@ Examples:
             self.cmd_branch_mrs(args)
         elif args.command == 'mr':
             self.cmd_mr_pipelines(args)
+        elif args.command == 'mr-info':
+            self.cmd_mr_info(args)
         elif args.command == 'status':
             self.cmd_pipeline_status(args)
         elif args.command == 'jobs':

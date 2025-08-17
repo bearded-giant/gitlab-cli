@@ -4,6 +4,8 @@
 
 import os
 import json
+import subprocess
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -15,6 +17,7 @@ class Config:
         self.config_dir = Path.home() / ".config" / "gitlab-cli"
         self.config_file = self.config_dir / "config.json"
         self._config = self._load_config()
+        self._detected_project = None
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file and environment variables"""
@@ -24,6 +27,7 @@ class Config:
             'project_path': None,
             'cache_dir': str(Path.home() / ".cache" / "gitlab-cli"),
             'auto_refresh_interval': 30,
+            'default_format': 'friendly',  # Default output format
         }
         
         # Load from config file if it exists
@@ -42,8 +46,56 @@ class Config:
             config['gitlab_token'] = os.environ['GITLAB_TOKEN']
         if os.environ.get('GITLAB_PROJECT'):
             config['project_path'] = os.environ['GITLAB_PROJECT']
+        if os.environ.get('GITLAB_DEFAULT_FORMAT'):
+            config['default_format'] = os.environ['GITLAB_DEFAULT_FORMAT']
         
         return config
+    
+    def _detect_project_from_git(self) -> Optional[str]:
+        """Detect GitLab project path from git remote URL"""
+        if self._detected_project is not None:
+            return self._detected_project
+            
+        try:
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                remote_url = result.stdout.strip()
+                
+                # Only auto-detect if the remote URL matches our configured GitLab URL
+                if self.gitlab_url:
+                    # Extract domain from gitlab_url
+                    import urllib.parse
+                    gitlab_domain = urllib.parse.urlparse(self.gitlab_url).netloc
+                    
+                    # Check if remote URL contains our GitLab domain
+                    if gitlab_domain not in remote_url:
+                        self._detected_project = ""  # Not our GitLab instance
+                        return None
+                
+                # Match SSH format: git@gitlab.com:group/project.git or with nested groups
+                # Handles: git@gitlab.rechargeapps.net:engineering/merchant-analytics/merchant-analytics.git
+                ssh_match = re.match(r'git@[^:]+:(.+?)(?:\.git)?$', remote_url)
+                if ssh_match:
+                    self._detected_project = ssh_match.group(1)
+                    return self._detected_project
+                
+                # Match HTTPS format: https://gitlab.com/group/project.git or with nested groups
+                https_match = re.match(r'https?://[^/]+/(.+?)(?:\.git)?/?$', remote_url)
+                if https_match:
+                    self._detected_project = https_match.group(1)
+                    return self._detected_project
+                    
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        self._detected_project = ""  # Cache negative result
+        return None
     
     def save_config(self, **kwargs):
         """Save configuration to file"""
@@ -68,11 +120,19 @@ class Config:
     
     @property
     def project_path(self) -> Optional[str]:
-        return self._config.get('project_path')
+        # Priority: Environment variable > Config file > Git remote detection
+        project = self._config.get('project_path')
+        if not project:
+            project = self._detect_project_from_git()
+        return project
     
     @property
     def cache_dir(self) -> str:
         return self._config.get('cache_dir', str(Path.home() / ".cache" / "gitlab-cli"))
+    
+    @property
+    def default_format(self) -> str:
+        return self._config.get('default_format', 'friendly')
     
     def validate(self) -> tuple[bool, str]:
         """Validate required configuration"""
@@ -81,6 +141,30 @@ class Config:
         if not self.gitlab_token:
             return False, "GITLAB_TOKEN not set. Set via environment variable or run: export GITLAB_TOKEN=<token>"
         if not self.project_path:
+            # Check if we're in a git repo but it's not a GitLab repo
+            try:
+                result = subprocess.run(
+                    ['git', 'remote', 'get-url', 'origin'],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    remote_url = result.stdout.strip()
+                    import urllib.parse
+                    gitlab_domain = urllib.parse.urlparse(self.gitlab_url).netloc
+                    
+                    if gitlab_domain not in remote_url:
+                        # Extract domain from remote for better error message
+                        if 'github.com' in remote_url:
+                            return False, f"This is a GitHub repository. GitLab CLI is configured for {gitlab_domain}.\nMove to a GitLab repository or set GITLAB_PROJECT explicitly."
+                        else:
+                            remote_domain = re.search(r'[@/]([^/:]+)[:/]', remote_url)
+                            remote_host = remote_domain.group(1) if remote_domain else 'unknown'
+                            return False, f"Git remote points to {remote_host} but GitLab CLI is configured for {gitlab_domain}.\nMove to a GitLab repository or set GITLAB_PROJECT explicitly."
+            except:
+                pass
+            
             return False, "GITLAB_PROJECT not set. Set via environment variable or run: gitlab-cli config --project <path>"
         return True, "Configuration valid"
     
