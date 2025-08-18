@@ -64,12 +64,16 @@ class JobCommands(BaseCommand):
         """Handle job detail subcommand - show comprehensive job information"""
         try:
             job = cli.explorer.project.jobs.get(job_id)
+            
+            # Get job dependencies
+            dependencies = self._get_job_dependencies(cli, job)
 
             if output_format == "json":
                 output = self._build_job_detail_json(cli, job, job_id)
+                output["dependencies"] = dependencies
                 self.output_json(output)
             else:
-                self._display_job_detail_friendly(cli, job, job_id)
+                self._display_job_detail_friendly(cli, job, job_id, dependencies)
 
         except Exception as e:
             self.output_error(f"Error fetching job {job_id}: {e}", output_format)
@@ -389,7 +393,53 @@ class JobCommands(BaseCommand):
 
         return output
 
-    def _display_job_detail_friendly(self, cli, job, job_id):
+    def _get_job_dependencies(self, cli, job):
+        """Get job dependencies (needs and dependent jobs)"""
+        dependencies = {
+            "needs": [],
+            "needed_by": []
+        }
+        
+        try:
+            # Get jobs this job depends on (needs)
+            if hasattr(job, 'needs') and job.needs:
+                for need in job.needs:
+                    if isinstance(need, dict):
+                        dependencies["needs"].append({
+                            "name": need.get("name", "Unknown"),
+                            "artifacts": need.get("artifacts", True)
+                        })
+                    else:
+                        dependencies["needs"].append({
+                            "name": str(need),
+                            "artifacts": True
+                        })
+            
+            # Get jobs that depend on this job
+            # We need to check all jobs in the pipeline
+            if hasattr(job, 'pipeline') and job.pipeline:
+                pipeline_id = job.pipeline.get('id') if isinstance(job.pipeline, dict) else job.pipeline.id
+                all_jobs = cli.explorer.project.pipelines.get(pipeline_id).jobs.list(all=True)
+                
+                for other_job in all_jobs:
+                    if hasattr(other_job, 'needs') and other_job.needs:
+                        for need in other_job.needs:
+                            need_name = need.get("name") if isinstance(need, dict) else str(need)
+                            if need_name == job.name:
+                                dependencies["needed_by"].append({
+                                    "id": other_job.id,
+                                    "name": other_job.name,
+                                    "status": other_job.status
+                                })
+                                break
+        except Exception as e:
+            # Dependencies might not be available for all jobs
+            if cli.verbose:
+                print(f"Note: Could not fully resolve dependencies: {e}")
+        
+        return dependencies
+    
+    def _display_job_detail_friendly(self, cli, job, job_id, dependencies=None):
         """Display friendly detailed job information"""
         # Check if job is allowed to fail and has failed
         is_allowed_failure = job.allow_failure and job.status == "failed"
@@ -493,6 +543,36 @@ class JobCommands(BaseCommand):
             
             if failures.get("failed_tests"):
                 print(f"\nFailed Tests: {failures['failed_tests']}")
+        
+        # Show job dependencies
+        if dependencies:
+            has_deps = bool(dependencies.get("needs") or dependencies.get("needed_by"))
+            if has_deps:
+                print(f"\n{'='*60}")
+                print("JOB DEPENDENCIES")
+                print(f"{'='*60}")
+                
+                # Show upstream dependencies (jobs this job needs)
+                if dependencies.get("needs"):
+                    print("\n🔼 This job depends on (needs):")
+                    for need in dependencies["needs"]:
+                        artifacts_str = " (with artifacts)" if need.get("artifacts") else " (no artifacts)"
+                        print(f"  • {need['name']}{artifacts_str}")
+                
+                # Show downstream dependencies (jobs that need this job)
+                if dependencies.get("needed_by"):
+                    print("\n🔽 Jobs that depend on this job:")
+                    for dependent in dependencies["needed_by"]:
+                        status_icon = {
+                            "success": "✅",
+                            "failed": "❌",
+                            "running": "🔄",
+                            "skipped": "⏭",
+                            "manual": "🎮",
+                            "canceled": "🚫",
+                            "pending": "⏳",
+                        }.get(dependent["status"], "⏸")
+                        print(f"  • {dependent['name']} (#{dependent['id']}) {status_icon} {dependent['status']}")
 
         print(f"\n{'='*60}")
 

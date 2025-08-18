@@ -407,6 +407,8 @@ gl pipelines detail 987654
 - **Detailed views**: New `detail` subcommand shows comprehensive information
 - **Pipeline variables**: View pipeline variables with `--show-variables` flag (masked for security)
 - **Job logs**: `gl jobs logs <id>` shows full job trace with smart failure extraction
+- **Job tailing**: `gl jobs tail <id>` follows job logs in real-time as they're generated
+- **Job dependencies**: View job dependencies (needs/needed_by) in job detail view
 - **Job search**: Search for jobs by name pattern with `--job-search`
 - **Pipeline/Job management**: Retry failed pipelines/jobs, cancel running pipelines, play manual jobs
 - **Smart failure extraction**: Automatically detects job type (pytest, pylint, mypy, etc.) and extracts relevant failures

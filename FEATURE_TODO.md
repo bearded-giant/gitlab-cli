@@ -21,10 +21,12 @@
   - Variables are masked for security (showing only first/last chars)
 
 ## Job Dependencies
-- [ ] **Job Dependencies/Needs Visualization**
+- [x] **Job Dependencies/Needs Visualization** ✅
   - Show which jobs a job depends on ("needs")
   - Show which jobs depend on this job
   - Add to `gl jobs detail <id>` output
+  - Shows artifacts dependency status
+  - Shows status of dependent jobs
 
 ## Artifacts
 - [ ] **Artifact Management**
