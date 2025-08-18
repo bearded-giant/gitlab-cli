@@ -110,6 +110,11 @@ class GitLabCLIv3:
             help="Search for jobs by name pattern (case-insensitive)"
         )
         parser.add_argument(
+            "--show-variables", 
+            action="store_true", 
+            help="Show pipeline variables (for detail command)"
+        )
+        parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
         parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
@@ -125,12 +130,12 @@ class GitLabCLIv3:
         parser.add_argument(
             "action",
             nargs="?",
-            help='Job ID(s) or action: <id>, <id,id,...>, "detail", "logs", "retry", or "play"',
+            help='Job ID(s) or action: <id>, <id,id,...>, "detail", "logs", "tail", "retry", or "play"',
         )
         parser.add_argument(
             "job_id",
             nargs="?",
-            help='Job ID (when using "detail", "logs", "retry", or "play")',
+            help='Job ID (when using "detail", "logs", "tail", "retry", or "play")',
         )
         parser.add_argument(
             "--failures", action="store_true", help="Show detailed failure information"
@@ -155,6 +160,7 @@ class GitLabCLIv3:
         print("  gl pipelines cancel <id>    Cancel running pipeline")
         print("  gl jobs detail <id>         Show comprehensive job info")
         print("  gl jobs logs <id>           Show job logs/trace")
+        print("  gl jobs tail <id>           Tail job logs in real-time")
         print("  gl jobs retry <id>          Retry a failed job")
         print("  gl jobs play <id>           Play/trigger a manual job")
         print("  gl mrs detail <id>          Show comprehensive MR info\n")
@@ -276,6 +282,17 @@ class GitLabCLIv3:
                         sys.exit(1)
                 else:
                     print("Error: 'logs' requires a job ID")
+                    sys.exit(1)
+            elif args.action == "tail":
+                if args.job_id:
+                    try:
+                        job_id = int(args.job_id)
+                        self.jobs_cmd.handle_job_tail(cli, job_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid job ID: {args.job_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'tail' requires a job ID")
                     sys.exit(1)
             elif args.action == "retry":
                 if args.job_id:

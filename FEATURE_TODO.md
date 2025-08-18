@@ -9,11 +9,16 @@
 - [x] **Job Retry/Play Commands** ✅
   - `gl jobs retry <id>` - Retry a failed job
   - `gl jobs play <id>` - Play/trigger a manual job
+- [x] **Job Tail Command** ✅
+  - `gl jobs tail <id>` - Tail job logs in real-time as they're generated
+  - Automatically stops when job completes
+  - Shows failure analysis if job fails (with --failures flag)
 
 ## Pipeline Details
-- [ ] **Pipeline Variables View**
+- [x] **Pipeline Variables View** ✅
   - `gl pipelines detail <id> --show-variables` - Show pipeline variables that were set
   - Include both predefined and user-defined variables
+  - Variables are masked for security (showing only first/last chars)
 
 ## Job Dependencies
 - [ ] **Job Dependencies/Needs Visualization**

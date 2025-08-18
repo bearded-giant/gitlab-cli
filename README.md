@@ -211,6 +211,9 @@ gl pipelines 567890
 # Show comprehensive pipeline details
 gl pipelines detail 567890
 
+# Show pipeline details with variables
+gl pipelines detail 567890 --show-variables
+
 # Retry failed jobs in a pipeline
 gl pipelines retry 567890
 
@@ -402,6 +405,7 @@ gl pipelines detail 987654
 
 - **Intuitive exploration**: ID-based commands for easy pipeline/job/MR exploration
 - **Detailed views**: New `detail` subcommand shows comprehensive information
+- **Pipeline variables**: View pipeline variables with `--show-variables` flag (masked for security)
 - **Job logs**: `gl jobs logs <id>` shows full job trace with smart failure extraction
 - **Job search**: Search for jobs by name pattern with `--job-search`
 - **Pipeline/Job management**: Retry failed pipelines/jobs, cancel running pipelines, play manual jobs

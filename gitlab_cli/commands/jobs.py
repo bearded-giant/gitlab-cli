@@ -2,6 +2,7 @@
 
 import sys
 import json
+import time
 from .base import BaseCommand
 
 
@@ -100,6 +101,76 @@ class JobCommands(BaseCommand):
 
         except Exception as e:
             self.output_error(f"Error fetching job {job_id} logs: {e}", output_format)
+
+    def handle_job_tail(self, cli, job_id, args, output_format):
+        """Tail job logs in real-time"""
+        try:
+            job = cli.explorer.project.jobs.get(job_id)
+            
+            print(f"Tailing logs for job #{job_id}: {job.name}")
+            print(f"Status: {job.status}")
+            print(f"{'='*60}")
+            
+            last_size = 0
+            poll_interval = 2  # seconds
+            completed_statuses = ["success", "failed", "canceled", "skipped"]
+            
+            while True:
+                # Refresh job status
+                job = cli.explorer.project.jobs.get(job_id)
+                
+                # Get current trace
+                try:
+                    trace = job.trace()
+                    if isinstance(trace, bytes):
+                        trace = trace.decode("utf-8", errors="replace")
+                except Exception as e:
+                    if "404" in str(e):
+                        print("\n⏳ Waiting for job to start...")
+                        time.sleep(poll_interval)
+                        continue
+                    else:
+                        raise e
+                
+                # Check if there's new content
+                current_size = len(trace)
+                if current_size > last_size:
+                    # Print only the new content
+                    new_content = trace[last_size:]
+                    sys.stdout.write(new_content)
+                    sys.stdout.flush()
+                    last_size = current_size
+                
+                # Check if job is complete
+                if job.status in completed_statuses:
+                    print(f"\n{'='*60}")
+                    print(f"Job completed with status: {job.status}")
+                    
+                    # Show failure extraction for failed jobs
+                    if job.status == "failed" and getattr(args, "failures", False):
+                        failures = cli.explorer.extract_failures_from_trace(trace, job.name)
+                        if failures.get("summary") or failures.get("details"):
+                            print(f"\n{'='*60}")
+                            print("Failure Analysis:")
+                            print(f"{'='*60}")
+                            if failures.get("summary"):
+                                print("\nSummary:")
+                                for line in failures["summary"]:
+                                    print(f"  {line}")
+                            if failures.get("details"):
+                                print("\nDetails:")
+                                for line in failures["details"][:50]:
+                                    print(f"  {line}")
+                    break
+                
+                # Wait before next poll
+                time.sleep(poll_interval)
+                
+        except KeyboardInterrupt:
+            print("\n\n⏹ Tail interrupted by user")
+            sys.exit(0)
+        except Exception as e:
+            self.output_error(f"Error tailing job {job_id}: {e}", output_format)
 
     def handle_job_retry(self, cli, job_id, args, output_format):
         """Handle job retry - retry a failed job"""

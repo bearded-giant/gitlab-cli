@@ -269,6 +269,16 @@ class PipelineCommands(BaseCommand):
         try:
             # Get pipeline details
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+            
+            # Get pipeline variables if requested
+            pipeline_variables = None
+            if getattr(args, 'show_variables', False):
+                try:
+                    pipeline_variables = pipeline.variables.list(all=True)
+                except Exception as e:
+                    # Some pipelines might not have variables accessible
+                    if cli.verbose:
+                        print(f"Warning: Could not fetch variables: {e}")
 
             # Get job summary
             summary = cli.explorer.get_job_status_summary(
@@ -328,6 +338,18 @@ class PipelineCommands(BaseCommand):
                     },
                     "stages": summary["stages"],
                 }
+                
+                # Add variables if fetched
+                if pipeline_variables is not None:
+                    output["variables"] = [
+                        {
+                            "key": var.key,
+                            "value": var.value,
+                            "variable_type": getattr(var, "variable_type", "env_var")
+                        }
+                        for var in pipeline_variables
+                    ]
+                
                 print(json.dumps(output, indent=2))
             elif output_format == "table":
                 # Table format for pipeline details
@@ -444,6 +466,46 @@ class PipelineCommands(BaseCommand):
                             for job in stage_info["failed_jobs"][:3]:
                                 print(f"      ❌ {job['id']} - {job['name']}")
 
+                # Show variables if requested
+                if pipeline_variables is not None and len(pipeline_variables) > 0:
+                    print(f"\n{'='*60}")
+                    print("Pipeline Variables:")
+                    print(f"{'='*60}")
+                    
+                    # Group variables by type
+                    env_vars = []
+                    file_vars = []
+                    
+                    for var in pipeline_variables:
+                        var_type = getattr(var, "variable_type", "env_var")
+                        if var_type == "file":
+                            file_vars.append(var)
+                        else:
+                            env_vars.append(var)
+                    
+                    if env_vars:
+                        print("\nEnvironment Variables:")
+                        for var in env_vars:
+                            # Mask sensitive values (show first and last 2 chars if long enough)
+                            value = var.value
+                            if len(value) > 10:
+                                masked_value = f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
+                            elif len(value) > 4:
+                                masked_value = f"{value[0]}{'*' * (len(value) - 2)}{value[-1]}"
+                            else:
+                                masked_value = "*" * len(value)
+                            
+                            print(f"  {var.key}: {masked_value}")
+                    
+                    if file_vars:
+                        print("\nFile Variables:")
+                        for var in file_vars:
+                            print(f"  {var.key}: [File content, {len(var.value)} bytes]")
+                    
+                    print(f"\nTotal variables: {len(pipeline_variables)}")
+                elif getattr(args, 'show_variables', False):
+                    print("\nNo pipeline variables found or accessible.")
+                
                 print(f"\nPipeline URL: {pipeline.web_url}")
 
         except Exception as e:
