@@ -96,17 +96,18 @@ class GitLabCLIv3:
             description='Show merge request information'
         )
         
-        # First positional can be 'detail' or MR IDs
+        # First positional argument
         parser.add_argument(
-            'mr_ids',
-            help='MR ID(s) (comma-separated) or "detail" followed by ID'
+            'action',
+            nargs='?',  # Make it optional so --help works
+            help='MR ID(s) or action: <id>, <id,id,...>, or "detail"'
         )
         
-        # Optional second positional for detail ID
+        # Second positional for the ID when using actions
         parser.add_argument(
-            'detail_id',
+            'mr_id',
             nargs='?',
-            help='MR ID when using detail command'
+            help='MR ID (when using "detail")'
         )
         parser.add_argument(
             '--pipelines',
@@ -132,17 +133,18 @@ class GitLabCLIv3:
             description='Show pipeline information and job summaries'
         )
         
-        # First positional can be 'detail' or pipeline IDs
+        # First positional argument
         parser.add_argument(
-            'pipeline_ids',
-            help='Pipeline ID(s) (comma-separated) or "detail" followed by ID'
+            'action',
+            nargs='?',  # Make it optional so --help works
+            help='Pipeline ID(s) or action: <id>, <id,id,...>, or "detail"'
         )
         
-        # Optional second positional for detail ID
+        # Second positional for the ID when using actions
         parser.add_argument(
-            'detail_id',
+            'pipeline_id',
             nargs='?',
-            help='Pipeline ID when using detail command'
+            help='Pipeline ID (when using "detail")'
         )
         
         # Status filters for drilling down
@@ -178,6 +180,10 @@ class GitLabCLIv3:
             help='Filter by stage name'
         )
         parser.add_argument(
+            '--job-search',
+            help='Search for jobs by name pattern (case-insensitive)'
+        )
+        parser.add_argument(
             '--format',
             choices=['friendly', 'table', 'json'],
             help='Output format'
@@ -196,17 +202,18 @@ class GitLabCLIv3:
             description='Show job information and failure details'
         )
         
-        # First positional can be 'detail' or job IDs
+        # First positional argument
         parser.add_argument(
-            'job_ids',
-            help='Job ID(s) (comma-separated) or "detail" followed by ID'
+            'action',
+            nargs='?',  # Make it optional so --help works
+            help='Job ID(s) or action: <id>, <id,id,...>, "detail", or "logs"'
         )
         
-        # Optional second positional for detail ID
+        # Second positional for the ID when using actions
         parser.add_argument(
-            'detail_id',
+            'job_id',
             nargs='?',
-            help='Job ID when using detail command'
+            help='Job ID (when using "detail" or "logs")'
         )
         parser.add_argument(
             '--failures',
@@ -289,6 +296,7 @@ class GitLabCLIv3:
         print("  pipelines detail <id> Show comprehensive pipeline details")
         print("  jobs <id,...>        Show job summaries")
         print("  jobs detail <id>     Show comprehensive job details")
+        print("  jobs logs <id>       Show full job logs/trace")
         print("  mrs detail <id>      Show comprehensive MR details")
         print("  config               Manage configuration")
         print("\nExamples:")
@@ -325,54 +333,80 @@ class GitLabCLIv3:
             self.handle_branches(cli, args, output_format)
         
         elif args.area == 'mrs':
-            # Check if first arg is 'detail'
-            if args.mr_ids == 'detail':
-                if args.detail_id:
+            # Check if action was provided
+            if not args.action:
+                print("Error: Please provide MR ID(s) or use 'gl mrs --help' for help")
+                sys.exit(1)
+            # Check if action is 'detail'
+            elif args.action == 'detail':
+                if args.mr_id:
                     try:
-                        mr_id = int(args.detail_id)
+                        mr_id = int(args.mr_id)
                         self.handle_mr_detail(cli, mr_id, args, output_format)
                     except ValueError:
-                        print(f"Error: Invalid MR ID: {args.detail_id}")
+                        print(f"Error: Invalid MR ID: {args.mr_id}")
                         sys.exit(1)
                 else:
                     print("Error: 'detail' requires an MR ID")
                     sys.exit(1)
             else:
-                ids = self.parse_ids(args.mr_ids)
+                # It's MR IDs
+                ids = self.parse_ids(args.action)
                 self.handle_mrs(cli, ids, args, output_format)
         
         elif args.area == 'pipelines':
-            # Check if first arg is 'detail'
-            if args.pipeline_ids == 'detail':
-                if args.detail_id:
+            # Check if action was provided
+            if not args.action:
+                print("Error: Please provide pipeline ID(s) or use 'gl pipelines --help' for help")
+                sys.exit(1)
+            # Check if action is 'detail'
+            elif args.action == 'detail':
+                if args.pipeline_id:
                     try:
-                        pipeline_id = int(args.detail_id)
+                        pipeline_id = int(args.pipeline_id)
                         self.handle_pipeline_detail(cli, pipeline_id, args, output_format)
                     except ValueError:
-                        print(f"Error: Invalid pipeline ID: {args.detail_id}")
+                        print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
                 else:
                     print("Error: 'detail' requires a pipeline ID")
                     sys.exit(1)
             else:
-                ids = self.parse_ids(args.pipeline_ids)
+                # It's pipeline IDs
+                ids = self.parse_ids(args.action)
                 self.handle_pipelines(cli, ids, args, output_format)
         
         elif args.area == 'jobs':
-            # Check if first arg is 'detail'
-            if args.job_ids == 'detail':
-                if args.detail_id:
+            # Check if action was provided
+            if not args.action:
+                print("Error: Please provide job ID(s) or use 'gl jobs --help' for help")
+                sys.exit(1)
+            # Check if action is 'detail' or 'logs'
+            elif args.action == 'detail':
+                if args.job_id:
                     try:
-                        job_id = int(args.detail_id)
+                        job_id = int(args.job_id)
                         self.handle_job_detail(cli, job_id, args, output_format)
                     except ValueError:
-                        print(f"Error: Invalid job ID: {args.detail_id}")
+                        print(f"Error: Invalid job ID: {args.job_id}")
                         sys.exit(1)
                 else:
                     print("Error: 'detail' requires a job ID")
                     sys.exit(1)
+            elif args.action == 'logs':
+                if args.job_id:
+                    try:
+                        job_id = int(args.job_id)
+                        self.handle_job_logs(cli, job_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid job ID: {args.job_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'logs' requires a job ID")
+                    sys.exit(1)
             else:
-                ids = self.parse_ids(args.job_ids)
+                # It's job IDs
+                ids = self.parse_ids(args.action)
                 self.handle_jobs(cli, ids, args, output_format)
     
     def handle_branches(self, cli, args, output_format):
@@ -518,7 +552,10 @@ class GitLabCLIv3:
             status_filter = 'skipped'
         
         for pipeline_id in ids:
-            if args.jobs or status_filter:
+            if args.job_search:
+                # Search for jobs by name pattern
+                self.search_pipeline_jobs(cli, pipeline_id, args.job_search, output_format)
+            elif args.jobs or status_filter:
                 # Show jobs (filtered if status provided)
                 args.pipeline_id = pipeline_id
                 args.status = status_filter
@@ -530,6 +567,110 @@ class GitLabCLIv3:
             
             if len(ids) > 1 and output_format != 'json':
                 print("-" * 80)
+    
+    def search_pipeline_jobs(self, cli, pipeline_id, search_pattern, output_format):
+        """Search for jobs in a pipeline by name pattern"""
+        try:
+            # Get all jobs for the pipeline, including bridges (trigger jobs)
+            pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+            
+            # Get regular jobs
+            jobs = pipeline.jobs.list(all=True)
+            
+            # Also get bridges (trigger jobs) - these are shown as "Trigger job" in UI
+            try:
+                bridges = pipeline.bridges.list(all=True)
+                # Combine jobs and bridges
+                all_jobs = list(jobs) + list(bridges)
+            except:
+                # If bridges API is not available, just use regular jobs
+                all_jobs = list(jobs)
+            
+            # Filter jobs by name pattern (case-insensitive)
+            pattern_lower = search_pattern.lower()
+            matching_jobs = [job for job in all_jobs if pattern_lower in job.name.lower()]
+            
+            if not matching_jobs:
+                # Debug: show what jobs we found
+                if cli.verbose:
+                    print(f"Debug: Found {len(all_jobs)} total jobs in pipeline {pipeline_id}")
+                    for job in all_jobs[:5]:
+                        print(f"  - {job.name} (type: {type(job).__name__})")
+                print(f"No jobs found matching '{search_pattern}' in pipeline {pipeline_id}")
+                return
+            
+            if output_format == 'json':
+                # JSON output
+                output = {
+                    'pipeline_id': pipeline_id,
+                    'search_pattern': search_pattern,
+                    'matching_jobs': [
+                        {
+                            'id': job.id,
+                            'name': job.name,
+                            'status': job.status,
+                            'stage': job.stage,
+                            'duration': job.duration,
+                            'created_at': job.created_at,
+                            'started_at': job.started_at,
+                            'finished_at': job.finished_at,
+                            'web_url': job.web_url
+                        }
+                        for job in matching_jobs
+                    ]
+                }
+                print(json.dumps(output, indent=2))
+            elif output_format == 'table':
+                # Table format
+                print(f"\nJobs matching '{search_pattern}' in Pipeline {pipeline_id}")
+                print("-" * 100)
+                print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Duration':<10} {'Name':<50}")
+                print("-" * 100)
+                for job in matching_jobs:
+                    name = job.name[:47] + '...' if len(job.name) > 50 else job.name
+                    status_display = job.status.upper()[:10]
+                    duration = cli.explorer.format_duration(job.duration)
+                    print(f"{job.id:<12} {status_display:<10} {job.stage:<15} {duration:<10} {name:<50}")
+                print("-" * 100)
+                print(f"Found {len(matching_jobs)} job(s) matching '{search_pattern}'")
+            else:
+                # Friendly format
+                print(f"\n🔍 Jobs matching '{search_pattern}' in Pipeline {pipeline_id}:")
+                print("-" * 60)
+                
+                for job in matching_jobs:
+                    status_icon = {
+                        'success': '✅',
+                        'failed': '❌',
+                        'running': '🔄',
+                        'skipped': '⏭',
+                        'canceled': '⏹',
+                        'manual': '👆'
+                    }.get(job.status, '⏸')
+                    
+                    # Check if it's a bridge/trigger job
+                    job_type = " (Trigger job)" if hasattr(job, 'downstream_pipeline') else ""
+                    
+                    print(f"\n{status_icon} {job.name}{job_type}")
+                    print(f"   ID: {job.id} | Status: {job.status} | Stage: {job.stage}")
+                    
+                    # Duration might not exist for bridges
+                    duration = getattr(job, 'duration', None)
+                    if duration is not None:
+                        print(f"   Duration: {cli.explorer.format_duration(duration)}")
+                    
+                    # Show downstream pipeline for trigger jobs
+                    if hasattr(job, 'downstream_pipeline') and job.downstream_pipeline:
+                        downstream = job.downstream_pipeline
+                        print(f"   Triggered Pipeline: #{downstream.get('id')} - {downstream.get('status')}")
+                    
+                    if job.status == 'failed':
+                        print(f"   URL: {job.web_url}")
+                
+                print(f"\nFound {len(matching_jobs)} job(s) matching '{search_pattern}'")
+                
+        except Exception as e:
+            print(f"Error searching jobs in pipeline {pipeline_id}: {e}")
     
     def show_pipeline_summary(self, cli, pipeline_id, args, output_format):
         """Show pipeline summary"""
@@ -988,12 +1129,25 @@ class GitLabCLIv3:
                     print(f"  ID:         #{job.pipeline['id']}")
                     print(f"  Status:     {p_status_icon} {job.pipeline['status']}")
                 
-                if hasattr(job, 'artifacts') and job.artifacts:
-                    print(f"\nArtifacts:")
-                    for artifact in job.artifacts:
-                        print(f"  • {artifact.get('filename', 'Unknown')} ({artifact.get('size', 0)} bytes)")
-                    if hasattr(job, 'artifacts_expire_at') and job.artifacts_expire_at:
-                        print(f"  Expires:    {job.artifacts_expire_at}")
+                artifacts_info = getattr(job, 'artifacts', None)
+                if artifacts_info:
+                    if callable(artifacts_info):
+                        try:
+                            artifacts_info = artifacts_info()
+                        except:
+                            artifacts_info = None
+                    
+                    if artifacts_info and isinstance(artifacts_info, (list, tuple)):
+                        print(f"\nArtifacts:")
+                        for artifact in artifacts_info:
+                            if isinstance(artifact, dict):
+                                print(f"  • {artifact.get('filename', 'Unknown')} ({artifact.get('size', 0)} bytes)")
+                            else:
+                                print(f"  • {str(artifact)}")
+                        
+                        expire_at = getattr(job, 'artifacts_expire_at', None)
+                        if expire_at:
+                            print(f"  Expires:    {expire_at}")
                 
                 # Show failure details if failed
                 if job.status == 'failed':
@@ -1009,6 +1163,62 @@ class GitLabCLIv3:
                 
         except Exception as e:
             print(f"Error fetching job {job_id} details: {e}")
+    
+    def handle_job_logs(self, cli, job_id, args, output_format):
+        """Handle job logs subcommand - show full job trace/logs"""
+        try:
+            # Get job and its trace
+            job = cli.explorer.project.jobs.get(job_id)
+            trace = job.trace()
+            
+            if isinstance(trace, bytes):
+                trace = trace.decode("utf-8", errors="replace")
+            
+            if output_format == 'json':
+                # JSON output
+                output = {
+                    'job_id': job_id,
+                    'name': job.name,
+                    'status': job.status,
+                    'trace': trace
+                }
+                
+                # Also include smart failure extraction
+                if job.status == 'failed':
+                    failures = cli.explorer.extract_failures_from_trace(trace, job.name)
+                    output['extracted_failures'] = failures
+                
+                print(json.dumps(output, indent=2))
+            else:
+                # Friendly output - show the trace with some context
+                print(f"\n{'='*60}")
+                print(f"Job Logs: {job.name} (#{job_id})")
+                print(f"Status: {job.status.upper()}")
+                print(f"{'='*60}\n")
+                
+                # For failed jobs, first show extracted failures
+                if job.status == 'failed':
+                    failures = cli.explorer.extract_failures_from_trace(trace, job.name)
+                    
+                    if failures.get('short_summary'):
+                        print("📋 Extracted Failures:")
+                        print("-" * 40)
+                        print(failures['short_summary'])
+                        print("-" * 40)
+                        print()
+                        
+                        # Ask if they want to see full logs
+                        print("Full job trace follows...\n")
+                        print("=" * 60)
+                
+                # Print the full trace
+                print(trace)
+                
+                print(f"\n{'='*60}")
+                print(f"End of logs for job #{job_id}")
+                
+        except Exception as e:
+            print(f"Error fetching job {job_id} logs: {e}")
     
     def handle_mr_detail(self, cli, mr_id, args, output_format):
         """Handle MR detail subcommand - show comprehensive MR information"""

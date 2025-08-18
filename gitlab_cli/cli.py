@@ -283,7 +283,7 @@ class GitLabExplorer:
                 'duration': job.duration,
                 'finished_at': job.finished_at,
                 'web_url': job.web_url,
-                'failures': self.extract_failures_from_trace(trace)
+                'failures': self.extract_failures_from_trace(trace, job.name)
             }
             
             return result
@@ -291,15 +291,45 @@ class GitLabExplorer:
             print(f"Error fetching job {job_id}: {e}")
             return {}
 
-    def extract_failures_from_trace(self, trace: str) -> Dict[str, Any]:
-        """Extract failure information from job trace."""
+    def extract_failures_from_trace(self, trace: str, job_name: str = '') -> Dict[str, Any]:
+        """Extract failure information from job trace based on job type."""
         failures = {
             'short_summary': None,
             'detailed_failures': None,
             'stderr': None,
-            'error_lines': []
+            'error_lines': [],
+            'type': 'generic'  # Type of failure extraction used
         }
         
+        # Determine job type and use appropriate extraction
+        job_name_lower = job_name.lower()
+        
+        # Pylint jobs
+        if 'pylint' in job_name_lower:
+            failures['type'] = 'pylint'
+            return self.extract_pylint_failures(trace, failures)
+        
+        # Integration/unit test jobs (pytest)
+        elif any(test_word in job_name_lower for test_word in ['test', 'pytest', 'integration', 'unit']):
+            failures['type'] = 'pytest'
+            return self.extract_pytest_failures(trace, failures)
+        
+        # Ruff/linting jobs
+        elif 'ruff' in job_name_lower or 'lint' in job_name_lower:
+            failures['type'] = 'linting'
+            return self.extract_linting_failures(trace, failures)
+        
+        # Type checking jobs
+        elif 'mypy' in job_name_lower or 'type' in job_name_lower:
+            failures['type'] = 'typecheck'
+            return self.extract_typecheck_failures(trace, failures)
+        
+        # Default: generic extraction
+        else:
+            return self.extract_generic_failures(trace, failures)
+    
+    def extract_pytest_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
+        """Extract pytest-specific failure information."""
         # Short test summary
         summary_pattern = re.compile(
             r"(^=+\s*short test summary info\s*=+\n.*?)(?=^=+|\Z)",
@@ -327,12 +357,111 @@ class GitLabExplorer:
         if stderr_match:
             failures['stderr'] = stderr_match.group(1).strip()
         
-        # Generic error lines
-        error_lines = []
-        for line in trace.split('\n'):
-            if any(keyword in line.lower() for keyword in ['error', 'failed', 'exception', 'traceback']):
-                error_lines.append(line.strip())
-        failures['error_lines'] = error_lines[:20]  # Limit to first 20 error lines
+        return failures
+    
+    def extract_pylint_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
+        """Extract pylint-specific violations."""
+        # Look for pylint violation patterns
+        violations = []
+        violation_pattern = re.compile(r'^\*+\s*Module\s+(.+)$', re.MULTILINE)
+        
+        # Find all module sections with violations
+        module_matches = violation_pattern.finditer(trace)
+        
+        for match in module_matches:
+            module_name = match.group(1)
+            module_start = match.end()
+            
+            # Find the next module or end of violations
+            next_module = violation_pattern.search(trace, module_start)
+            module_end = next_module.start() if next_module else len(trace)
+            
+            # Extract violations for this module
+            module_section = trace[module_start:module_end]
+            violation_lines = []
+            
+            for line in module_section.split('\n'):
+                # Match pylint violation format: file.py:line:col: CODE: message
+                if re.match(r'^.+\.py:\d+:\d+:\s+[A-Z]\d+:', line):
+                    violation_lines.append(line.strip())
+            
+            if violation_lines:
+                violations.extend(violation_lines)
+        
+        if violations:
+            failures['short_summary'] = f"Pylint found {len(violations)} violation(s):\n" + '\n'.join(violations[:20])
+            if len(violations) > 20:
+                failures['short_summary'] += f"\n... and {len(violations) - 20} more violations"
+        
+        # Also check for the exit code message
+        exit_pattern = re.compile(r'ERROR: Job failed: command terminated with exit code (\d+)')
+        exit_match = exit_pattern.search(trace)
+        if exit_match and not violations:
+            failures['short_summary'] = f"Pylint failed with exit code {exit_match.group(1)}"
+        
+        return failures
+    
+    def extract_linting_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
+        """Extract linting failures (ruff, flake8, etc)."""
+        # Look for common linting output patterns
+        lint_errors = []
+        
+        # Ruff format: file.py:line:col: CODE message
+        ruff_pattern = re.compile(r'^(.+\.py):(\d+):(\d+):\s+([A-Z]\d+)\s+(.+)$', re.MULTILINE)
+        for match in ruff_pattern.finditer(trace):
+            lint_errors.append(match.group(0).strip())
+        
+        if lint_errors:
+            failures['short_summary'] = f"Linting found {len(lint_errors)} issue(s):\n" + '\n'.join(lint_errors[:15])
+            if len(lint_errors) > 15:
+                failures['short_summary'] += f"\n... and {len(lint_errors) - 15} more issues"
+        
+        return failures
+    
+    def extract_typecheck_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
+        """Extract type checking failures (mypy, etc)."""
+        # Look for mypy error format
+        type_errors = []
+        
+        # Mypy format: file.py:line: error: message
+        mypy_pattern = re.compile(r'^(.+\.py):(\d+):\s+error:\s+(.+)$', re.MULTILINE)
+        for match in mypy_pattern.finditer(trace):
+            type_errors.append(match.group(0).strip())
+        
+        if type_errors:
+            failures['short_summary'] = f"Type checking found {len(type_errors)} error(s):\n" + '\n'.join(type_errors[:15])
+            if len(type_errors) > 15:
+                failures['short_summary'] += f"\n... and {len(type_errors) - 15} more errors"
+        
+        return failures
+    
+    def extract_generic_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
+        """Generic failure extraction for unknown job types."""
+        # Look for the last 30 lines before "Job failed"
+        lines = trace.split('\n')
+        
+        # Find where the job failed
+        failed_index = -1
+        for i, line in enumerate(lines):
+            if 'ERROR: Job failed' in line or 'Job failed' in line:
+                failed_index = i
+                break
+        
+        if failed_index > 0:
+            # Get the last 30 lines before failure
+            start_index = max(0, failed_index - 30)
+            context_lines = lines[start_index:failed_index + 1]
+            failures['short_summary'] = "Job failed. Last 30 lines:\n" + '\n'.join(context_lines)
+        else:
+            # Generic error line extraction
+            error_lines = []
+            for line in lines:
+                if any(keyword in line.lower() for keyword in ['error', 'failed', 'exception', 'fatal', 'abort']):
+                    error_lines.append(line.strip())
+            
+            if error_lines:
+                failures['short_summary'] = "Error lines found:\n" + '\n'.join(error_lines[:20])
+                failures['error_lines'] = error_lines[:20]
         
         return failures
 

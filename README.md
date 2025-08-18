@@ -152,8 +152,17 @@ gl jobs --help           # Show job-specific commands
 ### Output Formats
 All commands support multiple output formats:
 - `--format friendly` - Human-readable with colors and icons (default)
-- `--format table` - Tabular format for processing
+- `--format table` - Tabular format with aligned columns
 - `--format json` - JSON output for scripting
+
+The default format can be set in config:
+```bash
+gl config set --default-format table
+```
+
+Format inheritance:
+- If `--format` is not specified, the format from config is used
+- If no default is configured, `friendly` format is used
 
 ## Commands
 
@@ -205,6 +214,10 @@ gl pipelines detail 567890
 # Show multiple pipelines
 gl pipelines 567890,567891,567892
 
+# Search for jobs by name pattern
+gl pipelines 1090389 --job-search pylint
+gl pipelines 1090389 --job-search "integration test"
+
 # Show failed jobs in pipeline
 gl pipelines 567890 --failed
 
@@ -216,9 +229,6 @@ gl pipelines 567890 --jobs
 
 # Filter by stage
 gl pipelines 567890 --stage test
-
-# Show detailed stage-by-stage view
-gl pipelines 567890 --detailed
 ```
 
 ### Job Commands
@@ -229,6 +239,9 @@ gl jobs 123456
 
 # Show comprehensive job details
 gl jobs detail 123456
+
+# Show full job logs/trace
+gl jobs logs 123456
 
 # Show multiple jobs
 gl jobs 123456,123457,123458
@@ -302,6 +315,26 @@ gl jobs detail 111222
 # - Coverage
 # - Failure reasons and details
 # - Related pipeline status
+
+# 2. Get full job logs with smart failure extraction
+gl jobs logs 111222
+
+# This shows:
+# - Smart failure extraction based on job type:
+#   - pytest: test failures and assertions
+#   - pylint: linting violations
+#   - mypy: type checking errors
+#   - generic: last 30 lines before failure
+# - Full job trace/logs
+```
+
+### Finding Specific Jobs
+
+```bash
+# Search for jobs by name in a pipeline
+gl pipelines 1090389 --job-search pylint
+gl pipelines 1090389 --job-search "integration test"
+gl pipelines 1090389 --job-search ruff
 ```
 
 ### Automated Pipeline Watching
@@ -341,29 +374,62 @@ gl mrs 5678,5679,5680
 ```bash
 # JSON output for scripting
 gl pipelines detail 987654 --format json | jq '.stages'
+gl jobs 111222,111223,111224 --format json | jq '.jobs[].status'
 
-# Table format for processing
-gl pipelines 987654 --jobs --format table
+# Table format with aligned columns
+gl pipelines 987654 --format table
+gl jobs 111222,111223,111224 --format table
+gl mrs 5678,5679 --format table
 
-# Default friendly format
+# Friendly format (default) with colors and icons
 gl jobs detail 111222 --format friendly
+gl pipelines detail 987654
 ```
 
 ## Features
 
 - **Intuitive exploration**: ID-based commands for easy pipeline/job/MR exploration
 - **Detailed views**: New `detail` subcommand shows comprehensive information
+- **Job logs**: `gl jobs logs <id>` shows full job trace with smart failure extraction
+- **Job search**: Search for jobs by name pattern with `--job-search`
+- **Smart failure extraction**: Automatically detects job type (pytest, pylint, mypy, etc.) and extracts relevant failures
 - **Color-coded output**: Success (green), Failed (red), Running (yellow)
 - **Caching**: Completed pipelines are cached locally for faster access
 - **Filtering**: Filter jobs by status or stage
-- **Sorting**: Sort jobs by duration, name, or creation time
 - **Batch processing**: Analyze multiple items at once (pipelines, jobs, MRs)
-- **Detailed failure extraction**: Automatically extracts test failures, stderr, and error messages
 - **Multiple output formats**: Friendly (default), table, or JSON for scripting
 - **Auto-detection**: Automatically detects GitLab project from git remote
 - **Global availability**: Install with pipx for use across all projects
 
 ## Output Examples
+
+### Table Format
+
+```
+gl pipelines 567890 --format table
+
+Pipeline 567890 Summary
+------------------------------------------------------------
+Status          FAILED
+Created         2024-01-15T10:30
+Duration        45m32s
+------------------------------------------------------------
+Job Status      Count
+------------------------------------------------------------
+Total                142
+Success              130
+Failed                 5
+Running                2
+Skipped                2
+------------------------------------------------------------
+
+Failed Jobs:
+--------------------------------------------------------------------------------
+ID           Stage           Name
+--------------------------------------------------------------------------------
+123456       test            py311 integration test parallel 1/100
+123457       test            py311 integration test parallel 15/100
+```
 
 ### Pipeline Summary (gl pipelines 567890)
 ```
