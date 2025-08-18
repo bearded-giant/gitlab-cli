@@ -211,6 +211,12 @@ gl pipelines 567890
 # Show comprehensive pipeline details
 gl pipelines detail 567890
 
+# Retry failed jobs in a pipeline
+gl pipelines retry 567890
+
+# Cancel a running pipeline
+gl pipelines cancel 567890
+
 # Show multiple pipelines
 gl pipelines 567890,567891,567892
 
@@ -242,6 +248,12 @@ gl jobs detail 123456
 
 # Show full job logs/trace
 gl jobs logs 123456
+
+# Retry a failed job
+gl jobs retry 123456
+
+# Play/trigger a manual job
+gl jobs play 123456
 
 # Show multiple jobs
 gl jobs 123456,123457,123458
@@ -392,6 +404,7 @@ gl pipelines detail 987654
 - **Detailed views**: New `detail` subcommand shows comprehensive information
 - **Job logs**: `gl jobs logs <id>` shows full job trace with smart failure extraction
 - **Job search**: Search for jobs by name pattern with `--job-search`
+- **Pipeline/Job management**: Retry failed pipelines/jobs, cancel running pipelines, play manual jobs
 - **Smart failure extraction**: Automatically detects job type (pytest, pylint, mypy, etc.) and extracts relevant failures
 - **Color-coded output**: Success (green), Failed (red), Running (yellow)
 - **Caching**: Completed pipelines are cached locally for faster access
