@@ -36,16 +36,13 @@
   - `gl jobs artifacts <id> --download <name>` - Download specific artifact
 
 ## Pipeline Visualization
-- [ ] **Pipeline Graph/DAG View (Text-based)**
+- [x] **Pipeline Graph/DAG View (Text-based)** ✅
   - ASCII representation of pipeline stages and job dependencies
-  - Example:
-    ```
-    build → test → deploy
-      ├─ build-app    ├─ unit-tests     ├─ deploy-prod
-      └─ build-docs   ├─ integration     └─ cleanup
-                      └─ lint
-    ```
-  - `gl pipelines graph <id>` or `gl pipelines detail <id> --graph`
+  - Shows stage flow with arrows
+  - Tree view of jobs within each stage
+  - Duration histogram for parallel test jobs
+  - Statistics for parallel job durations (min/max/avg)
+  - `gl pipelines graph <id>` command implemented
 
 ## Time-based Features
 - [ ] **Time-based Pipeline Filtering**

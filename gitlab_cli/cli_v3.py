@@ -88,12 +88,12 @@ class GitLabCLIv3:
         parser.add_argument(
             "action",
             nargs="?",
-            help='Pipeline ID(s) or action: <id>, <id,id,...>, "detail", "retry", or "cancel"',
+            help='Pipeline ID(s) or action: <id>, <id,id,...>, "detail", "graph", "retry", or "cancel"',
         )
         parser.add_argument(
             "pipeline_id",
             nargs="?",
-            help='Pipeline ID (when using "detail", "retry", or "cancel")',
+            help='Pipeline ID (when using "detail", "graph", "retry", or "cancel")',
         )
 
         # Status filters
@@ -156,6 +156,7 @@ class GitLabCLIv3:
         print("  config               Manage configuration\n")
         print("Actions:")
         print("  gl pipelines detail <id>    Show comprehensive pipeline info")
+        print("  gl pipelines graph <id>     Show pipeline graph visualization")
         print("  gl pipelines retry <id>     Retry failed jobs in pipeline")
         print("  gl pipelines cancel <id>    Cancel running pipeline")
         print("  gl jobs detail <id>         Show comprehensive job info")
@@ -229,6 +230,17 @@ class GitLabCLIv3:
                         sys.exit(1)
                 else:
                     print("Error: 'detail' requires a pipeline ID")
+                    sys.exit(1)
+            elif args.action == "graph":
+                if args.pipeline_id:
+                    try:
+                        pipeline_id = int(args.pipeline_id)
+                        self.pipelines_cmd.handle_pipeline_graph(cli, pipeline_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'graph' requires a pipeline ID")
                     sys.exit(1)
             elif args.action == "retry":
                 if args.pipeline_id:

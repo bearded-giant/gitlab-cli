@@ -126,7 +126,7 @@ class GitLabExplorer:
             if verbose:
                 import time
                 start = time.time()
-            cached = self.get_pipeline_from_cache(pipeline_id)
+            cached = self.get_pipeline_from_cache(pipeline_id, verbose=verbose)
             if cached:
                 if verbose:
                     print(f"✓ Retrieved pipeline {pipeline_id} from cache ({time.time() - start:.3f}s)")
@@ -159,9 +159,24 @@ class GitLabExplorer:
             print(f"Error fetching pipeline {pipeline_id}: {e}")
             return None
 
-    def get_pipeline_from_cache(self, pipeline_id: int) -> Optional[Dict[str, Any]]:
+    def get_pipeline_from_cache(self, pipeline_id: int, verbose: bool = False) -> Optional[Dict[str, Any]]:
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
+        
+        # Debug: show what's in cache if verbose
+        if verbose:
+            cur.execute("SELECT COUNT(*) FROM pipelines")
+            count = cur.fetchone()[0]
+            print(f"Cache contains {count} total pipelines")
+            
+            # Show recent cached pipelines
+            cur.execute("SELECT pipeline_id, created_at FROM pipelines ORDER BY created_at DESC LIMIT 5")
+            recent = cur.fetchall()
+            if recent:
+                print("Recent cached pipelines:")
+                for pid, created in recent:
+                    print(f"  - Pipeline {pid} (created: {created[:16]})")
+        
         cur.execute("SELECT data FROM pipelines WHERE pipeline_id = ?", (pipeline_id,))
         row = cur.fetchone()
         conn.close()

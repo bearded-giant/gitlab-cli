@@ -2,6 +2,7 @@
 
 import sys
 import json
+from collections import defaultdict
 from .base import BaseCommand
 
 
@@ -167,6 +168,15 @@ class PipelineCommands(BaseCommand):
 
     def show_pipeline_summary(self, cli, pipeline_id, args, output_format):
         """Show pipeline summary"""
+        # Show cache location if verbose
+        if cli.verbose:
+            from pathlib import Path
+            cache_path = Path(cli.explorer.db_file)
+            print(f"\n📁 Cache location: {cache_path}")
+            print(f"   Cache exists: {cache_path.exists()}")
+            if cache_path.exists():
+                print(f"   Cache size: {cache_path.stat().st_size:,} bytes")
+        
         summary = cli.explorer.get_job_status_summary(pipeline_id, verbose=cli.verbose)
 
         if not summary:
@@ -590,3 +600,180 @@ class PipelineCommands(BaseCommand):
             else:
                 print(f"❌ Error canceling pipeline {pipeline_id}: {e}")
             sys.exit(1)
+    
+    def handle_pipeline_graph(self, cli, pipeline_id, args, output_format):
+        """Display pipeline graph visualization"""
+        try:
+            pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+            jobs = pipeline.jobs.list(all=True)
+            
+            # Organize jobs by stage
+            stages = defaultdict(list)
+            stage_order = []
+            
+            for job in jobs:
+                if job.stage not in stage_order:
+                    stage_order.append(job.stage)
+                stages[job.stage].append(job)
+            
+            if output_format == "json":
+                # JSON output with structured data
+                graph_data = {
+                    "pipeline_id": pipeline_id,
+                    "status": pipeline.status,
+                    "stages": []
+                }
+                for stage in stage_order:
+                    stage_jobs = []
+                    for job in stages[stage]:
+                        stage_jobs.append({
+                            "id": job.id,
+                            "name": job.name,
+                            "status": job.status,
+                            "duration": job.duration,
+                            "needs": getattr(job, 'needs', [])
+                        })
+                    graph_data["stages"].append({
+                        "name": stage,
+                        "jobs": stage_jobs
+                    })
+                print(json.dumps(graph_data, indent=2))
+            else:
+                # ASCII graph visualization
+                print(f"\n{'='*80}")
+                print(f"Pipeline #{pipeline_id} Graph")
+                print(f"Status: {self._get_status_icon(pipeline.status)} {pipeline.status}")
+                print(f"{'='*80}\n")
+                
+                # Display stage flow
+                stage_line = " → ".join(stage_order)
+                print(f"Stage Flow: {stage_line}\n")
+                print("-" * 80)
+                
+                # Display jobs by stage with visual tree
+                for i, stage in enumerate(stage_order):
+                    stage_jobs = stages[stage]
+                    print(f"\n📦 Stage: {stage}")
+                    print("  " + "─" * (76 - len(stage)))
+                    
+                    # Sort jobs for better display
+                    stage_jobs.sort(key=lambda x: x.name)
+                    
+                    for j, job in enumerate(stage_jobs):
+                        is_last = (j == len(stage_jobs) - 1)
+                        prefix = "  └─" if is_last else "  ├─"
+                        
+                        status_icon = self._get_status_icon(job.status)
+                        duration_str = self.format_duration(job.duration) if job.duration else "N/A"
+                        
+                        # Check if it's a parallel job
+                        is_parallel = "parallel" in job.name.lower()
+                        parallel_marker = " [P]" if is_parallel else ""
+                        
+                        print(f"{prefix} {status_icon} {job.name}{parallel_marker}")
+                        print(f"  {'  ' if not is_last else '  '}  Duration: {duration_str} | ID: {job.id}")
+                        
+                        # Show dependencies if any
+                        if hasattr(job, 'needs') and job.needs:
+                            needs_str = ", ".join([n['name'] if isinstance(n, dict) else str(n) for n in job.needs])
+                            print(f"  {'  ' if not is_last else '  '}  Needs: {needs_str}")
+                
+                # Test duration graph for parallel jobs
+                self._display_test_duration_graph(stages, stage_order)
+                
+                print(f"\n{'='*80}")
+        
+        except Exception as e:
+            if output_format == "json":
+                print(json.dumps({
+                    "error": str(e),
+                    "pipeline_id": pipeline_id
+                }, indent=2))
+            else:
+                print(f"❌ Error generating pipeline graph: {e}")
+            sys.exit(1)
+    
+    def _get_status_icon(self, status):
+        """Get icon for job/pipeline status"""
+        return {
+            "success": "✅",
+            "failed": "❌",
+            "running": "🔄",
+            "pending": "⏳",
+            "canceled": "🚫",
+            "skipped": "⏭",
+            "manual": "🎮",
+            "created": "🆕"
+        }.get(status, "❓")
+    
+    def _display_test_duration_graph(self, stages, stage_order):
+        """Display duration graph for parallel test jobs"""
+        # Find parallel test jobs
+        parallel_jobs = []
+        
+        for stage in stage_order:
+            for job in stages[stage]:
+                if "parallel" in job.name.lower() and job.duration:
+                    # Extract parallel number if available
+                    import re
+                    match = re.search(r'(\d+)/(\d+)', job.name)
+                    if match:
+                        parallel_num = int(match.group(1))
+                        parallel_total = int(match.group(2))
+                    else:
+                        parallel_num = 0
+                        parallel_total = 0
+                    
+                    parallel_jobs.append({
+                        'name': job.name,
+                        'duration': job.duration,
+                        'status': job.status,
+                        'num': parallel_num,
+                        'total': parallel_total
+                    })
+        
+        if not parallel_jobs:
+            return
+        
+        # Sort by parallel number
+        parallel_jobs.sort(key=lambda x: x['num'])
+        
+        print(f"\n{'='*80}")
+        print("Parallel Test Duration Graph")
+        print(f"{'='*80}")
+        
+        # Find max duration for scaling
+        max_duration = max(job['duration'] for job in parallel_jobs)
+        max_bar_width = 50
+        
+        # Display histogram
+        for job in parallel_jobs[:20]:  # Limit to first 20 for readability
+            # Calculate bar width
+            bar_width = int((job['duration'] / max_duration) * max_bar_width)
+            bar = "█" * bar_width
+            
+            # Format job name (shorten if needed)
+            if job['num'] > 0:
+                job_label = f"Test {job['num']:3d}/{job['total']}"
+            else:
+                job_label = job['name'][:15]
+            
+            duration_str = self.format_duration(job['duration'])
+            status_icon = self._get_status_icon(job['status'])
+            
+            print(f"{job_label:15} {status_icon} |{bar:<{max_bar_width}} {duration_str}")
+        
+        if len(parallel_jobs) > 20:
+            print(f"\n... and {len(parallel_jobs) - 20} more parallel jobs")
+        
+        # Show statistics
+        durations = [j['duration'] for j in parallel_jobs]
+        avg_duration = sum(durations) / len(durations)
+        min_duration = min(durations)
+        max_duration = max(durations)
+        
+        print(f"\nStatistics:")
+        print(f"  Total parallel jobs: {len(parallel_jobs)}")
+        print(f"  Average duration: {self.format_duration(avg_duration)}")
+        print(f"  Min duration: {self.format_duration(min_duration)}")
+        print(f"  Max duration: {self.format_duration(max_duration)}")

@@ -214,6 +214,9 @@ gl pipelines detail 567890
 # Show pipeline details with variables
 gl pipelines detail 567890 --show-variables
 
+# Show pipeline graph visualization (stages, jobs, test durations)
+gl pipelines graph 567890
+
 # Retry failed jobs in a pipeline
 gl pipelines retry 567890
 
