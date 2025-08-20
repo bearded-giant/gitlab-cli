@@ -516,7 +516,8 @@ class PipelineCommands(BaseCommand):
                 elif getattr(args, 'show_variables', False):
                     print("\nNo pipeline variables found or accessible.")
                 
-                print(f"\nPipeline URL: {pipeline.web_url}")
+                print(f"\nPIPELINE_URL: {pipeline.web_url}")
+                print(f"PIPELINE_ID: {pipeline.id}")
 
         except Exception as e:
             print(f"Error fetching pipeline {pipeline_id} details: {e}")

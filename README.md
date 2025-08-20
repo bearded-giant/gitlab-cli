@@ -404,6 +404,29 @@ gl jobs detail 111222 --format friendly
 gl pipelines detail 987654
 ```
 
+### Scriptable Output with Greppable Prefixes
+
+All commands output greppable prefixes (like `BRANCH_URL:`, `MR_ID:`, `PIPELINE_URL:`) for easy scripting:
+
+```bash
+# Open branch in browser
+open $(gl branches | grep "^BRANCH_URL:" | cut -d' ' -f2)
+
+# Open latest MR
+open $(gl branches --latest | grep "^LATEST_MR_URL:" | cut -d' ' -f2)
+
+# Open specific pipeline
+open $(gl pipelines detail 123456 | grep "^PIPELINE_URL:" | cut -d' ' -f2)
+
+# Open failed job from a pipeline
+JOB_ID=$(gl pipelines 123456 --failed | head -n 20 | grep "^[0-9]" | head -1)
+open $(gl jobs detail $JOB_ID | grep "^JOB_URL:" | cut -d' ' -f2)
+
+# Get pipeline ID for latest MR
+PIPELINE_ID=$(gl branches --latest | grep "^LATEST_PIPELINE_ID:" | cut -d' ' -f2)
+gl pipelines detail $PIPELINE_ID
+```
+
 ## Features
 
 - **Intuitive exploration**: ID-based commands for easy pipeline/job/MR exploration

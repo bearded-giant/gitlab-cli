@@ -499,11 +499,19 @@ class PipelineCLI:
         """List merge requests for a branch."""
         mrs = self.explorer.get_mrs_for_branch(args.branch_name, args.state)
         
+        # Build branch URL
+        project = self.explorer.project
+        branch_url = f"{project.web_url}/-/tree/{args.branch_name}"
+        
+        print(f"\nBranch: {args.branch_name}")
+        print(f"BRANCH_URL: {branch_url}")
+        print()
+        
         if not mrs:
             print(f"No {args.state} MRs found for branch '{args.branch_name}'")
             return
         
-        print(f"\nMerge Requests for branch '{args.branch_name}' (state: {args.state}):")
+        print(f"Merge Requests (state: {args.state}):")
         print("-" * 120)
         print(f"{'MR':<8} {'Status':<10} {'Pipeline':<12} {'Title':<50} {'Author':<15} {'Target'}")
         print("-" * 120)
@@ -540,11 +548,24 @@ class PipelineCLI:
             
             print(f"!{mr['iid']:<7} {state_display} {pipeline_display:<12} {title:<50} {mr['author']:<15} {mr['target_branch']}")
         
+        # Show URLs and IDs for each MR (greppable format)
+        print("\nGreppable Output:")
+        for mr in mrs:
+            print(f"MR_ID: {mr['id']}")
+            print(f"MR_IID: {mr['iid']}")
+            print(f"MR_URL: {mr['web_url']}")
+            if mr['pipeline_id']:
+                print(f"PIPELINE_ID: {mr['pipeline_id']}")
+            print()  # Blank line between MRs
+        
         if args.latest and mrs:
             latest_mr = mrs[0]
-            print(f"\nLatest MR: !{latest_mr['iid']} (ID: {latest_mr['id']})")
+            print(f"LATEST_MR_ID: {latest_mr['id']}")
+            print(f"LATEST_MR_IID: {latest_mr['iid']}")
+            print(f"LATEST_MR_URL: {latest_mr['web_url']}")
             if latest_mr['pipeline_id']:
-                print(f"Latest pipeline: {latest_mr['pipeline_id']} (status: {latest_mr['pipeline_status']})")
+                print(f"LATEST_PIPELINE_ID: {latest_mr['pipeline_id']}")
+                print(f"LATEST_PIPELINE_STATUS: {latest_mr['pipeline_status']}")
 
     def cmd_mr_info(self, args):
         """Get detailed information about a merge request."""

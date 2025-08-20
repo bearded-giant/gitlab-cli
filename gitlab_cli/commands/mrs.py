@@ -320,4 +320,6 @@ class MRsCommand(BaseCommand):
             if len(mr.description.split("\n")) > 5:
                 print(f"  ... (truncated)")
 
-        print(f"\nMR URL: {mr.web_url}")
+        print(f"\nMR_URL: {mr.web_url}")
+        print(f"MR_ID: {mr.id}")
+        print(f"MR_IID: {mr.iid}")

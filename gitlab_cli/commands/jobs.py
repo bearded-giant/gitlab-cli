@@ -482,7 +482,8 @@ class JobCommands(BaseCommand):
         if job.finished_at:
             print(f"Finished: {job.finished_at}")
         
-        print(f"Web URL: {job.web_url}")
+        print(f"\nJOB_URL: {job.web_url}")
+        print(f"JOB_ID: {job.id}")
 
         # Show pipeline info if available
         pipeline_info = getattr(job, "pipeline", None)
