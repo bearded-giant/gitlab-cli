@@ -53,7 +53,7 @@ You can set a default output format (friendly, table, or json) that will be used
 gl config set --default-format json
 
 # Override per command
-gl pipelines 123456 --format table
+gl pipeline 123456 --format table
 ```
 
 ### Auto-Detection of Project
@@ -95,24 +95,30 @@ Cache is stored in `~/.cache/gitlab-cli/`
 
 After installation, the tool is available as `gitlab-cli` or `gl` (short alias).
 
-### CLI v3: New Intuitive Interface
-The new v3 interface makes exploration even easier with ID-based commands:
+### CLI v3: New Contextual Interface
+The new v3 interface provides fluid, contextual discovery of resources:
 
 ```bash
-# Show summary of a pipeline
-gl pipelines 123456
+# Branch context - explore branch and related resources
+gl branch                          # Show current branch info
+gl branch feature-xyz              # Show specific branch info  
+gl branch feature-xyz mr           # Show MRs for branch
+gl branch feature-xyz pipeline     # Show pipelines for branch
+gl branch feature-xyz commit       # Show commits on branch
 
-# Show detailed information about a pipeline
-gl pipelines detail 123456
+# MR context - explore MR and related resources
+gl mr 1234                         # Show MR info
+gl mr 1234 diff                    # Show MR diff
+gl mr 1234 diff --view split      # Show side-by-side diff
+gl mr 1234 pipeline                # Show MR pipelines
+gl mr 1234 commit                  # Show MR commits
+gl mr 1234 discussion              # Show MR discussions
 
-# Show failed jobs in a pipeline
-gl pipelines 123456 --failed
-
-# Show job details
-gl jobs detail 789012
-
-# Show MR details
-gl mrs detail 5678
+# Pipeline and job exploration
+gl pipeline 567890                 # Show pipeline summary
+gl pipeline detail 567890          # Show detailed pipeline info
+gl job 123456                      # Show job summary
+gl job logs 123456                 # Show job logs
 ```
 
 ### Traditional Commands (v2)
@@ -127,26 +133,27 @@ gl pipeline status 123456 --detailed
 ## Command Structure
 
 ### CLI v3 (New - Recommended)
-The new v3 interface uses intuitive plurals and ID-based exploration:
+The new v3 interface provides contextual, discoverable commands:
 
 ```bash
-gl <area> [id(s)] [options]        # Basic pattern
-gl <area> detail <id> [options]    # Detailed view
+gl <area> [resource] [subcommand] [options]    # Contextual pattern
+gl <area> <id> [options]                       # Direct ID access
 ```
 
 Areas:
-- `branches` - Branch operations
-- `mrs` - Merge request operations  
-- `pipelines` - Pipeline operations
-- `jobs` - Job operations
+- `branch` - Branch context and related resources
+- `mr` - Merge request context and related resources (alias: `merge-request`)
+- `pipeline` - Pipeline operations and job exploration
+- `job` - Job operations and log access
 - `config` - Configuration management
+- `cache` - Cache management
 
 ### Quick Help
 ```bash
 gl --help                # Show all available commands
 gl help                  # Same as --help
-gl pipelines --help      # Show pipeline-specific commands
-gl jobs --help           # Show job-specific commands
+gl pipeline --help      # Show pipeline-specific commands
+gl job --help           # Show job-specific commands
 ```
 
 ### Output Formats
@@ -166,106 +173,154 @@ Format inheritance:
 
 ## Commands
 
-### Branch Commands
+### Branch Commands (Contextual)
 
 ```bash
-# List MRs for current branch (auto-detected)
-gl branches
+# Show current branch information
+gl branch                           # Shows branch info, MR count, pipeline status
 
-# List MRs for specific branch
-gl branches feature-xyz
+# Show specific branch information  
+gl branch feature-xyz               # Shows feature-xyz branch info
 
-# Filter by state
-gl branches --state all
-gl branches --state merged
+# Explore branch resources
+gl branch feature-xyz mr            # List MRs for branch
+gl branch feature-xyz mr --state all     # All MRs (opened, merged, closed)
+gl branch feature-xyz pipeline      # Recent pipelines for branch
+gl branch feature-xyz commit        # Recent commits on branch
 
-# Show only latest MR
-gl branches --latest
+# Filter options
+gl branch feature-xyz mr --limit 5  # Limit results
+gl branch main pipeline --limit 10  # Show last 10 pipelines
 ```
 
-### Merge Request Commands
+### Merge Request Commands (Contextual)
 
 ```bash
-# Show MR summary
-gl mrs 1234
+# Show MR information and explore resources
+gl mr 1234                          # Show MR summary with quick actions
+gl mr 1234 info                     # Same as above (explicit)
 
-# Show detailed MR information
-gl mrs detail 1234
+# MR Diff Commands - Multiple View Modes
+gl mr 1234 diff                     # Show diff (uses config default view)
+gl mr 1234 diff --view unified      # Traditional git diff
+gl mr 1234 diff --view inline       # Inline diff with line numbers
+gl mr 1234 diff --view split        # Side-by-side diff
+gl mr 1234 diff --stats             # Show only statistics
+gl mr 1234 diff --name-only         # List changed files only
+gl mr 1234 diff --file path/to/file # Show diff for specific file
+gl mr 1234 diff --no-color          # Disable color output
 
-# Show multiple MRs at once
-gl mrs 1234,5678,9012
+# Explore MR resources
+gl mr 1234 pipeline                 # Show pipelines for MR
+gl mr 1234 commit                   # Show commits in MR
+gl mr 1234 discussion               # Show discussions/comments
 
-# Show MR with pipeline info
-gl mrs 1234 --pipelines
+# Search MRs with filters
+gl mr search                        # List all open MRs
+gl mr search --author johndoe       # MRs by specific author
+gl mr search --assignee janedoe     # MRs assigned to janedoe
+gl mr search --reviewer bobsmith    # MRs with bobsmith as reviewer
+gl mr search --state merged         # Show merged MRs
+gl mr search --state all            # Show all MRs
+gl mr search --labels "bug,critical" # MRs with specific labels
+gl mr search --search "fix login"   # Search in title and description
+gl mr search --target-branch main   # MRs targeting main branch
+gl mr search --wip                  # Only WIP/Draft MRs
+gl mr search --created-after 3d     # MRs created in last 3 days
+gl mr search --updated-after "2 hours ago" # Recently updated MRs
 
-# Show full MR details including description
-gl mrs 1234 --full
+# Legacy commands (still supported)
+gl mr detail 1234                   # Detailed MR information
+gl mr 1234,5678,9012                # Show multiple MRs at once
+```
+
+### Diff View Configuration
+
+```bash
+# Set default diff view mode in config
+gl config set --diff-view split     # Set split as default
+gl config set --diff-view inline    # Set inline as default
+gl config set --diff-view unified   # Set unified as default
+
+# View current configuration
+gl config show                      # Shows current diff_view setting
 ```
 
 ### Pipeline Commands
 
 ```bash
+# List pipelines with filters
+gl pipeline list                           # List recent pipelines
+gl pipeline list --since 2d                # Pipelines from last 2 days
+gl pipeline list --since "3 hours ago"     # Pipelines from last 3 hours
+gl pipeline list --before 1w               # Pipelines older than 1 week
+gl pipeline list --user johndoe            # Pipelines by specific user
+gl pipeline list --ref main                # Pipelines for main branch
+gl pipeline list --source schedule         # Scheduled pipelines
+gl pipeline list --status failed           # Failed pipelines only
+gl pipeline list --since 2d --status failed --user johndoe  # Combine filters
+
 # Show pipeline summary
-gl pipelines 567890
+gl pipeline 567890
 
 # Show comprehensive pipeline details
-gl pipelines detail 567890
+gl pipeline detail 567890
 
 # Show pipeline details with variables
-gl pipelines detail 567890 --show-variables
+gl pipeline detail 567890 --show-variables
 
 # Show pipeline graph visualization (stages, jobs, test durations)
-gl pipelines graph 567890
+gl pipeline graph 567890
 
 # Retry failed jobs in a pipeline
-gl pipelines retry 567890
+gl pipeline retry 567890
 
 # Cancel a running pipeline
-gl pipelines cancel 567890
+gl pipeline cancel 567890
 
 # Show multiple pipelines
-gl pipelines 567890,567891,567892
+gl pipeline 567890,567891,567892
 
 # Search for jobs by name pattern
-gl pipelines 1090389 --job-search pylint
-gl pipelines 1090389 --job-search "integration test"
+gl pipeline 1090389 --job-search pylint
+gl pipeline 1090389 --job-search "integration test"
 
 # Show failed jobs in pipeline
-gl pipelines 567890 --failed
+gl pipeline 567890 --failed
 
 # Show running jobs
-gl pipelines 567890 --running
+gl pipeline 567890 --running
 
 # Show all jobs (not just summary)
-gl pipelines 567890 --jobs
+gl pipeline 567890 --jobs
 
 # Filter by stage
-gl pipelines 567890 --stage test
+gl pipeline 567890 --stage test
 ```
 
 ### Job Commands
 
 ```bash
 # Show job summary
-gl jobs 123456
+gl job 123456
 
 # Show comprehensive job details
-gl jobs detail 123456
+gl job detail 123456
 
 # Show full job logs/trace
-gl jobs logs 123456
+gl job logs 123456
 
 # Retry a failed job
-gl jobs retry 123456
+gl job retry 123456
 
 # Play/trigger a manual job
-gl jobs play 123456
+gl job play 123456
 
 # Show multiple jobs
-gl jobs 123456,123457,123458
+gl job 123456,123457,123458
 
 # Show job with failure details
-gl jobs 123456 --failures
+gl job 123456 --failures
 ```
 
 ### Configuration Commands
@@ -284,32 +339,83 @@ gl config set --project group/project
 gl config set --default-format json
 ```
 
+### Cache Management Commands
+
+```bash
+# Show cache information and behavior
+gl cache info
+
+# Show cache statistics
+gl cache stats
+gl cache stats --detailed  # Include breakdown by status and largest cached items
+
+# List cached pipelines
+gl cache list
+gl cache list --limit 50 --sort size  # Show 50 items sorted by size
+gl cache list --sort id                # Sort by pipeline ID
+
+# Clear cache
+gl cache clear --all                   # Clear entire cache (with confirmation)
+gl cache clear --pipeline 123456       # Clear specific pipeline
+gl cache clear --older-than 7          # Clear pipelines older than 7 days
+gl cache clear --all --force           # Clear all without confirmation
+```
+
 ## Example Workflows
 
 ### Quick Exploration (v3 - Recommended)
 
 ```bash
-# 1. Find MRs for your current branch
-gl branches --latest
+# 1. Check your current branch status
+gl branch
 
-# 2. Get detailed MR information
-gl mrs detail 5678
+# 2. See MRs for your branch (use branch name explicitly)
+gl branch auth-logging mr
 
-# 3. Check the latest pipeline
-gl pipelines 987654
+# 3. Quick access to MR URL
+open $(gl branch auth-logging mr | grep "^MR_URL:" | cut -d' ' -f2)
 
-# 4. See failed jobs
-gl pipelines 987654 --failed
+# 4. Check an MR and its diff
+gl mr 5678
+gl mr 5678 diff --view split
 
-# 5. Get detailed job information
-gl jobs detail 111222
+# 5. Check the latest pipeline
+gl pipeline 987654
+
+# 6. See failed jobs
+gl pipeline 987654 --failed
+
+# 7. Get job logs
+gl job logs 111222
+```
+
+### Useful Scripting Examples
+
+```bash
+# Open branch URL in browser
+open $(gl branch | grep "^BRANCH_URL:" | cut -d' ' -f2)
+
+# Get MR URL for quick access
+gl mr 1234 | grep "^MR_URL:" | cut -d' ' -f2
+
+# Get pipeline URL
+gl pipeline 567890 | grep "^PIPELINE_URL:" | cut -d' ' -f2
+
+# Check if pipeline succeeded
+gl pipeline 567890 --format json | jq -r '.status' | grep -q "success"
+
+# List all failed job IDs
+gl pipeline 567890 --format json | jq -r '.jobs[] | select(.status == "failed") | .id'
+
+# Export MR diff to file
+gl mr 1234 diff --no-color > mr_1234_changes.diff
 ```
 
 ### Comprehensive Pipeline Investigation
 
 ```bash
 # 1. Get detailed pipeline overview
-gl pipelines detail 987654
+gl pipeline detail 987654
 
 # This shows:
 # - Full timing information (created, started, finished, queued duration)
@@ -324,7 +430,7 @@ gl pipelines detail 987654
 
 ```bash
 # 1. Get comprehensive job details
-gl jobs detail 111222
+gl job detail 111222
 
 # This shows:
 # - Job status and timing
@@ -335,7 +441,7 @@ gl jobs detail 111222
 # - Related pipeline status
 
 # 2. Get full job logs with smart failure extraction
-gl jobs logs 111222
+gl job logs 111222
 
 # This shows:
 # - Smart failure extraction based on job type:
@@ -350,9 +456,9 @@ gl jobs logs 111222
 
 ```bash
 # Search for jobs by name in a pipeline
-gl pipelines 1090389 --job-search pylint
-gl pipelines 1090389 --job-search "integration test"
-gl pipelines 1090389 --job-search ruff
+gl pipeline 1090389 --job-search pylint
+gl pipeline 1090389 --job-search "integration test"
+gl pipeline 1090389 --job-search ruff
 ```
 
 ### Automated Pipeline Watching
@@ -378,30 +484,30 @@ Note: The watch script needs updating to use `gl` instead of direct Python scrip
 
 ```bash
 # Check multiple pipelines at once
-gl pipelines 987654,987655,987656
+gl pipeline 987654,987655,987656
 
 # Analyze multiple failed jobs
-gl jobs 111222,111223,111224 --failures
+gl job 111222,111223,111224 --failures
 
 # Review multiple MRs
-gl mrs 5678,5679,5680
+gl mr 5678,5679,5680
 ```
 
 ### Using Different Output Formats
 
 ```bash
 # JSON output for scripting
-gl pipelines detail 987654 --format json | jq '.stages'
-gl jobs 111222,111223,111224 --format json | jq '.jobs[].status'
+gl pipeline detail 987654 --format json | jq '.stages'
+gl job 111222,111223,111224 --format json | jq '.jobs[].status'
 
 # Table format with aligned columns
-gl pipelines 987654 --format table
-gl jobs 111222,111223,111224 --format table
-gl mrs 5678,5679 --format table
+gl pipeline 987654 --format table
+gl job 111222,111223,111224 --format table
+gl mr 5678,5679 --format table
 
 # Friendly format (default) with colors and icons
-gl jobs detail 111222 --format friendly
-gl pipelines detail 987654
+gl job detail 111222 --format friendly
+gl pipeline detail 987654
 ```
 
 ### Scriptable Output with Greppable Prefixes
@@ -410,21 +516,21 @@ All commands output greppable prefixes (like `BRANCH_URL:`, `MR_ID:`, `PIPELINE_
 
 ```bash
 # Open branch in browser
-open $(gl branches | grep "^BRANCH_URL:" | cut -d' ' -f2)
+open $(gl branch | grep "^BRANCH_URL:" | cut -d' ' -f2)
 
 # Open latest MR
-open $(gl branches --latest | grep "^LATEST_MR_URL:" | cut -d' ' -f2)
+open $(gl branch --latest | grep "^LATEST_MR_URL:" | cut -d' ' -f2)
 
 # Open specific pipeline
-open $(gl pipelines detail 123456 | grep "^PIPELINE_URL:" | cut -d' ' -f2)
+open $(gl pipeline detail 123456 | grep "^PIPELINE_URL:" | cut -d' ' -f2)
 
 # Open failed job from a pipeline
-JOB_ID=$(gl pipelines 123456 --failed | head -n 20 | grep "^[0-9]" | head -1)
-open $(gl jobs detail $JOB_ID | grep "^JOB_URL:" | cut -d' ' -f2)
+JOB_ID=$(gl pipeline 123456 --failed | head -n 20 | grep "^[0-9]" | head -1)
+open $(gl job detail $JOB_ID | grep "^JOB_URL:" | cut -d' ' -f2)
 
 # Get pipeline ID for latest MR
-PIPELINE_ID=$(gl branches --latest | grep "^LATEST_PIPELINE_ID:" | cut -d' ' -f2)
-gl pipelines detail $PIPELINE_ID
+PIPELINE_ID=$(gl branch --latest | grep "^LATEST_PIPELINE_ID:" | cut -d' ' -f2)
+gl pipeline detail $PIPELINE_ID
 ```
 
 ## Features
@@ -432,14 +538,17 @@ gl pipelines detail $PIPELINE_ID
 - **Intuitive exploration**: ID-based commands for easy pipeline/job/MR exploration
 - **Detailed views**: New `detail` subcommand shows comprehensive information
 - **Pipeline variables**: View pipeline variables with `--show-variables` flag (masked for security)
-- **Job logs**: `gl jobs logs <id>` shows full job trace with smart failure extraction
-- **Job tailing**: `gl jobs tail <id>` follows job logs in real-time as they're generated
+- **Job logs**: `gl job logs <id>` shows full job trace with smart failure extraction
+- **Job tailing**: `gl job tail <id>` follows job logs in real-time as they're generated
 - **Job dependencies**: View job dependencies (needs/needed_by) in job detail view
 - **Job search**: Search for jobs by name pattern with `--job-search`
 - **Pipeline/Job management**: Retry failed pipelines/jobs, cancel running pipelines, play manual jobs
 - **Smart failure extraction**: Automatically detects job type (pytest, pylint, mypy, etc.) and extracts relevant failures
 - **Color-coded output**: Success (green), Failed (red), Running (yellow)
-- **Caching**: Completed pipelines are cached locally for faster access
+- **Transparent caching**: Completed pipelines are cached locally for faster access
+  - Full cache management with `gl cache` commands
+  - View cache statistics and contents
+  - Clear cache selectively or completely
 - **Filtering**: Filter jobs by status or stage
 - **Batch processing**: Analyze multiple items at once (pipelines, jobs, MRs)
 - **Multiple output formats**: Friendly (default), table, or JSON for scripting
@@ -451,7 +560,7 @@ gl pipelines detail $PIPELINE_ID
 ### Table Format
 
 ```
-gl pipelines 567890 --format table
+gl pipeline 567890 --format table
 
 Pipeline 567890 Summary
 ------------------------------------------------------------
@@ -476,7 +585,7 @@ ID           Stage           Name
 123457       test            py311 integration test parallel 15/100
 ```
 
-### Pipeline Summary (gl pipelines 567890)
+### Pipeline Summary (gl pipeline 567890)
 ```
 Pipeline 567890: ❌ FAILED
 Created: 2024-01-15T10:30 | Duration: 45m32s
@@ -490,7 +599,7 @@ Failed Jobs:
 💡 Use --failed to see all failed jobs
 ```
 
-### Pipeline Detail (gl pipelines detail 567890)
+### Pipeline Detail (gl pipeline detail 567890)
 ```
 ============================================================
 Pipeline #567890
@@ -531,7 +640,7 @@ Stages:
 Pipeline URL: https://gitlab.example.com/...
 ```
 
-### Job Detail (gl jobs detail 123456)
+### Job Detail (gl job detail 123456)
 ```
 ============================================================
 integration test py parallel 1/100
@@ -570,7 +679,7 @@ Failure Details:
 Job URL: https://gitlab.example.com/...
 ```
 
-### MR Detail (gl mrs detail 5678)
+### MR Detail (gl mr detail 5678)
 ```
 ============================================================
 MR !5678: Add checkout validation improvements

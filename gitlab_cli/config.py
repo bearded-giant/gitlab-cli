@@ -28,6 +28,7 @@ class Config:
             'cache_dir': str(Path.home() / ".cache" / "gitlab-cli"),
             'auto_refresh_interval': 30,
             'default_format': 'friendly',  # Default output format
+            'diff_view': 'unified',  # Default diff view: unified, inline, or split
         }
         
         # Load from config file if it exists
@@ -133,6 +134,10 @@ class Config:
     @property
     def default_format(self) -> str:
         return self._config.get('default_format', 'friendly')
+    
+    @property
+    def diff_view(self) -> str:
+        return self._config.get('diff_view', 'unified')
     
     def validate(self) -> tuple[bool, str]:
         """Validate required configuration"""

@@ -9,6 +9,41 @@ from .base import BaseCommand
 class PipelineCommands(BaseCommand):
     """Handles all pipeline-related commands"""
 
+    def add_list_arguments(self, parser):
+        """Add arguments for pipeline listing/filtering"""
+        parser.add_argument(
+            "--since",
+            help="Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
+        )
+        parser.add_argument(
+            "--before", 
+            help="Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
+        )
+        parser.add_argument(
+            "--status",
+            choices=["success", "failed", "running", "pending", "canceled", "skipped"],
+            help="Filter by pipeline status"
+        )
+        parser.add_argument(
+            "--ref",
+            help="Filter by ref/branch name"
+        )
+        parser.add_argument(
+            "--user",
+            help="Filter by username who triggered the pipeline"
+        )
+        parser.add_argument(
+            "--source",
+            choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
+            help="Filter by pipeline source"
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=20,
+            help="Maximum number of pipelines to show (default: 20)"
+        )
+    
     def handle_pipelines(self, cli, ids, args, output_format):
         """Handle pipeline commands - show summaries by default"""
         status_filter = None

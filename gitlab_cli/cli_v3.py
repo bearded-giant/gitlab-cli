@@ -13,7 +13,11 @@ from .commands import (
     JobCommands,
     MRsCommand,
     ConfigCommand,
+    CacheCommand,
+    BranchCommand,
 )
+from .commands.search import SearchCommand
+from .commands.mr_context import MRContextCommand
 
 
 class GitLabCLIv3:
@@ -22,10 +26,14 @@ class GitLabCLIv3:
     def __init__(self):
         self.config = Config()
         self.branches_cmd = BranchesCommand()
+        self.branch_cmd = BranchCommand()  # New contextual branch command
         self.pipelines_cmd = PipelineCommands()
         self.jobs_cmd = JobCommands()
         self.mrs_cmd = MRsCommand()
+        self.mr_context_cmd = MRContextCommand()  # New contextual MR command
         self.config_cmd = ConfigCommand()
+        self.cache_cmd = CacheCommand()
+        self.search_cmd = SearchCommand()
 
     def create_parser(self):
         """Create the main argument parser with subcommands"""
@@ -51,36 +59,147 @@ class GitLabCLIv3:
         )
 
         # Add command parsers
-        self._add_branches_parser(subparsers)
-        self._add_mrs_parser(subparsers)
-        self._add_pipelines_parser(subparsers)
-        self._add_jobs_parser(subparsers)
+        self._add_branch_parser(subparsers)
+        self._add_mr_parser(subparsers)
+        self._add_pipeline_parser(subparsers)
+        self._add_job_parser(subparsers)
         self.config_cmd.add_arguments(subparsers)
+        self.cache_cmd.add_arguments(subparsers)
 
         return parser
 
-    def _add_branches_parser(self, subparsers):
-        """Add branches command parser"""
+    def _add_branch_parser(self, subparsers):
+        """Add branch command parser"""
         parser = subparsers.add_parser(
-            "branches",
+            "branch",
             help="Branch operations",
-            description="List merge requests for branches",
+            description="Show branch information and related resources",
         )
-        self.branches_cmd.add_arguments(parser)
+        self.branch_cmd.add_arguments(parser)
 
-    def _add_mrs_parser(self, subparsers):
-        """Add MRs command parser"""
+    def _add_mr_parser(self, subparsers):
+        """Add MR command parser"""
+        # Add 'mr' parser
         parser = subparsers.add_parser(
-            "mrs",
+            "mr",
+            aliases=["merge-request"],
             help="Merge request operations",
-            description="Show merge request information",
+            description="Show merge request information and related resources",
         )
-        self.mrs_cmd.add_arguments(parser)
+        
+        # Add primary arguments for contextual command
+        parser.add_argument(
+            "mr_id",
+            nargs="?",
+            help="MR ID or IID",
+        )
+        parser.add_argument(
+            "resource",
+            nargs="?",
+            choices=["diff", "pipeline", "commit", "discussion", "approve", "info", "search", "detail"],
+            help="Resource to show for MR (diff, pipeline, commit, discussion, approve, info)",
+        )
+        
+        # Diff-specific options
+        parser.add_argument(
+            "--view",
+            choices=["inline", "split", "unified"],
+            help="Diff view mode (inline, split, unified)"
+        )
+        parser.add_argument(
+            "--context",
+            type=int,
+            default=3,
+            help="Number of context lines for diff (default: 3)"
+        )
+        parser.add_argument(
+            "--file",
+            help="Show diff for specific file only"
+        )
+        parser.add_argument(
+            "--no-color",
+            action="store_true",
+            help="Disable color output for diffs"
+        )
+        parser.add_argument(
+            "--stats",
+            action="store_true",
+            help="Show diff statistics only"
+        )
+        parser.add_argument(
+            "--name-only",
+            action="store_true",
+            help="Show only file names that changed"
+        )
+        
+        # Search filters
+        parser.add_argument(
+            "--author",
+            help="Filter by author username"
+        )
+        parser.add_argument(
+            "--assignee",
+            help="Filter by assignee username"
+        )
+        parser.add_argument(
+            "--reviewer",
+            help="Filter by reviewer username"
+        )
+        parser.add_argument(
+            "--state",
+            choices=["opened", "closed", "merged", "all"],
+            default="opened",
+            help="Filter by MR state (default: opened)"
+        )
+        parser.add_argument(
+            "--labels",
+            help="Filter by labels (comma-separated)"
+        )
+        parser.add_argument(
+            "--search",
+            help="Search in title and description"
+        )
+        parser.add_argument(
+            "--target-branch",
+            dest="target_branch",
+            help="Filter by target branch"
+        )
+        parser.add_argument(
+            "--source-branch",
+            dest="source_branch",
+            help="Filter by source branch"
+        )
+        parser.add_argument(
+            "--wip",
+            action="store_true",
+            help="Show only WIP/Draft MRs"
+        )
+        parser.add_argument(
+            "--created-after",
+            dest="created_after",
+            help="Show MRs created after (e.g., '2d', '3h', '1w', '2 days ago')"
+        )
+        parser.add_argument(
+            "--updated-after",
+            dest="updated_after",
+            help="Show MRs updated after (e.g., '2d', '3h', '1w', '2 days ago')"
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=20,
+            help="Maximum number of MRs to show (default: 20)"
+        )
+        parser.add_argument(
+            "--format",
+            choices=["friendly", "table", "json"],
+            help="Output format"
+        )
 
-    def _add_pipelines_parser(self, subparsers):
-        """Add pipelines command parser"""
+    def _add_pipeline_parser(self, subparsers):
+        """Add pipeline command parser"""
         parser = subparsers.add_parser(
-            "pipelines",
+            "pipeline",
             help="Pipeline operations",
             description="Show pipeline information and job summaries",
         )
@@ -88,7 +207,7 @@ class GitLabCLIv3:
         parser.add_argument(
             "action",
             nargs="?",
-            help='Pipeline ID(s) or action: <id>, <id,id,...>, "detail", "graph", "retry", or "cancel"',
+            help='Pipeline ID(s) or action: <id>, <id,id,...>, "list", "detail", "graph", "retry", or "cancel"',
         )
         parser.add_argument(
             "pipeline_id",
@@ -118,11 +237,40 @@ class GitLabCLIv3:
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
         parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
+        
+        # Add time-based filters for list action
+        parser.add_argument(
+            "--since",
+            help="Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
+        )
+        parser.add_argument(
+            "--before", 
+            help="Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
+        )
+        parser.add_argument(
+            "--user",
+            help="Filter by username who triggered the pipeline"
+        )
+        parser.add_argument(
+            "--ref",
+            help="Filter by ref/branch name"
+        )
+        parser.add_argument(
+            "--source",
+            choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
+            help="Filter by pipeline source"
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=20,
+            help="Maximum number of pipelines to show (default: 20)"
+        )
 
-    def _add_jobs_parser(self, subparsers):
-        """Add jobs command parser"""
+    def _add_job_parser(self, subparsers):
+        """Add job command parser"""
         parser = subparsers.add_parser(
-            "jobs",
+            "job",
             help="Job operations",
             description="Show job information and failure details",
         )
@@ -147,38 +295,62 @@ class GitLabCLIv3:
     def print_main_help(self):
         """Print friendly main help"""
         print("GitLab CLI - Explore pipelines, jobs, and merge requests\n")
-        print("Usage: gl <area> <id(s)> [options]\n")
+        print("Usage: gl <area> [resource] [options]\n")
         print("Areas:")
-        print("  branches [name]      List MRs for a branch")
-        print("  mrs <id,...>         Show MR summaries")
-        print("  pipelines <id,...>   Show pipeline summaries")
-        print("  jobs <id,...>        Show job summaries")
-        print("  config               Manage configuration\n")
+        print("  branch [name]        Show branch info and related resources")
+        print("  mr <id>              Show MR info and related resources")
+        print("  pipeline <id>        Show pipeline info and jobs")
+        print("  job <id>             Show job info and logs")
+        print("  config               Manage configuration")
+        print("  cache                Manage cache\n")
+        print("Contextual Commands:")
+        print("  gl branch                   # Show current branch info")
+        print("  gl branch <name>            # Show specific branch info")
+        print("  gl branch <name> mr         # Show MRs for branch")
+        print("  gl branch <name> pipeline   # Show pipelines for branch")
+        print("  gl branch <name> commit     # Show commits for branch\n")
+        print("  gl mr <id>                  # Show MR info")
+        print("  gl mr <id> diff             # Show MR diff")
+        print("  gl mr <id> pipeline         # Show MR pipelines")
+        print("  gl mr <id> commit           # Show MR commits")
+        print("  gl mr <id> discussion       # Show MR discussions\n")
         print("Actions:")
-        print("  gl pipelines detail <id>    Show comprehensive pipeline info")
-        print("  gl pipelines graph <id>     Show pipeline graph visualization")
-        print("  gl pipelines retry <id>     Retry failed jobs in pipeline")
-        print("  gl pipelines cancel <id>    Cancel running pipeline")
-        print("  gl jobs detail <id>         Show comprehensive job info")
-        print("  gl jobs logs <id>           Show job logs/trace")
-        print("  gl jobs tail <id>           Tail job logs in real-time")
-        print("  gl jobs retry <id>          Retry a failed job")
-        print("  gl jobs play <id>           Play/trigger a manual job")
-        print("  gl mrs detail <id>          Show comprehensive MR info\n")
+        print("  gl pipeline list            # List/search pipelines")
+        print("  gl pipeline <id>            # Show pipeline summary")
+        print("  gl pipeline detail <id>     # Show comprehensive info")
+        print("  gl pipeline graph <id>      # Show pipeline graph")
+        print("  gl pipeline retry <id>      # Retry failed jobs")
+        print("  gl pipeline cancel <id>     # Cancel pipeline\n")
+        print("  gl job <id>                 # Show job summary")
+        print("  gl job detail <id>          # Show comprehensive info")
+        print("  gl job logs <id>            # Show job logs")
+        print("  gl job tail <id>            # Tail job logs")
+        print("  gl job retry <id>           # Retry job")
+        print("  gl job play <id>            # Play manual job\n")
+        print("  gl mr search                # Search MRs with filters\n")
+        print("  gl cache stats              # Show cache statistics")
+        print("  gl cache list               # List cached pipelines")
+        print("  gl cache clear              # Clear cache\n")
+        print("Diff View Options:")
+        print("  gl mr <id> diff             # Default view (from config)")
+        print("  gl mr <id> diff --view split    # Side-by-side diff")
+        print("  gl mr <id> diff --view inline   # Inline diff with line numbers")
+        print("  gl mr <id> diff --view unified  # Traditional git diff")
+        print("  gl mr <id> diff --stats         # Show only statistics")
+        print("  gl mr <id> diff --name-only     # Show only file names\n")
         print("Common options:")
         print("  --format <type>      Output as friendly, table, or json")
-        print("  --help               Show help for any command\n")
-        print("Examples:")
-        print("  gl branches                 # List MRs for current branch")
-        print("  gl pipelines 123456         # Show pipeline summary")
-        print("  gl jobs 789012 --failures   # Show job with failure details")
-        print("  gl mrs 5678                 # Show MR summary")
+        print("  --help               Show help for any command")
 
     def route_command(self, args):
         """Route commands to appropriate handlers"""
-        # Handle config separately
+        # Handle config and cache separately (don't need API connection)
         if args.area == "config":
             self.config_cmd.handle(self.config, args)
+            return
+        
+        if args.area == "cache":
+            self.cache_cmd.handle(self.config, args)
             return
 
         # Validate configuration for other commands
@@ -195,31 +367,55 @@ class GitLabCLIv3:
         output_format = getattr(args, "format", None) or self.config.default_format
 
         # Route based on area
-        if args.area == "branches":
-            self.branches_cmd.handle(cli, args, output_format)
+        if args.area == "branch":
+            # Use new contextual branch command
+            self.branch_cmd.handle(cli, args, output_format)
 
-        elif args.area == "mrs":
-            if not args.action:
-                print("Error: Please provide MR ID(s) or use 'gl mrs --help' for help")
+        elif args.area in ["mr", "merge-request"]:
+            # Handle MR contextual commands
+            if not args.mr_id and not args.resource:
+                print("Error: Please provide MR ID or use 'gl mr --help' for help")
                 sys.exit(1)
-            elif args.action == "detail":
-                if args.mr_id:
+            elif args.resource == "search" or (args.mr_id == "search" and not args.resource):
+                # Search MRs with filters
+                self.search_cmd.search_mrs(cli, args, output_format)
+            elif args.resource == "detail" or (args.mr_id and args.resource == "detail"):
+                # Legacy detail command support
+                mr_id = args.mr_id if args.resource == "detail" else args.resource
+                if mr_id and mr_id != "detail":
                     try:
-                        mr_id = int(args.mr_id)
+                        mr_id = int(mr_id)
                         self.mrs_cmd.handle_detail(cli, mr_id, args, output_format)
                     except ValueError:
-                        print(f"Error: Invalid MR ID: {args.mr_id}")
+                        print(f"Error: Invalid MR ID: {mr_id}")
                         sys.exit(1)
                 else:
                     print("Error: 'detail' requires an MR ID")
                     sys.exit(1)
+            elif args.mr_id:
+                # Use new contextual MR command
+                try:
+                    # Validate MR ID is numeric
+                    int(args.mr_id)
+                    self.mr_context_cmd.handle(cli, args, output_format)
+                except ValueError:
+                    # Check if it's a legacy multi-ID format
+                    if ',' in args.mr_id or args.mr_id.isdigit():
+                        self.mrs_cmd.handle(cli, args, output_format, action=args.mr_id)
+                    else:
+                        print(f"Error: Invalid MR ID: {args.mr_id}")
+                        sys.exit(1)
             else:
-                self.mrs_cmd.handle(cli, args, output_format, action=args.action)
-
-        elif args.area == "pipelines":
-            if not args.action:
-                print("Error: Please provide pipeline ID(s) or use 'gl pipelines --help' for help")
+                print("Error: Please provide MR ID or use 'gl mr --help' for help")
                 sys.exit(1)
+
+        elif args.area == "pipeline":
+            if not args.action:
+                print("Error: Please provide pipeline ID(s) or use 'gl pipeline --help' for help")
+                sys.exit(1)
+            elif args.action == "list":
+                # List pipelines with filters
+                self.search_cmd.list_pipelines(cli, args, output_format)
             elif args.action == "detail":
                 if args.pipeline_id:
                     try:
@@ -269,9 +465,9 @@ class GitLabCLIv3:
                 ids = self.pipelines_cmd.parse_ids(args.action)
                 self.pipelines_cmd.handle_pipelines(cli, ids, args, output_format)
 
-        elif args.area == "jobs":
+        elif args.area == "job":
             if not args.action:
-                print("Error: Please provide job ID(s) or use 'gl jobs --help' for help")
+                print("Error: Please provide job ID(s) or use 'gl job --help' for help")
                 sys.exit(1)
             elif args.action == "detail":
                 if args.job_id:

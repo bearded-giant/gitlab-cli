@@ -29,6 +29,11 @@ class ConfigCommand(BaseCommand):
             choices=["friendly", "table", "json"],
             help="Default output format",
         )
+        set_parser.add_argument(
+            "--diff-view",
+            choices=["unified", "inline", "split"],
+            help="Default diff view mode (unified, inline, or split)",
+        )
 
     def handle(self, config, args):
         """Handle configuration commands"""
@@ -47,6 +52,7 @@ class ConfigCommand(BaseCommand):
         print(f"Project:        {config.project_path or 'Not set (auto-detected)'}")
         print(f"Token:          {'Set' if config.gitlab_token else 'Not set'}")
         print(f"Default format: {config.default_format}")
+        print(f"Diff view:      {config.diff_view}")
         print(f"Cache dir:      {config.cache_dir}")
 
     def set_config(self, config, args):
@@ -58,6 +64,8 @@ class ConfigCommand(BaseCommand):
             update["project_path"] = args.project
         if hasattr(args, "default_format") and args.default_format:
             update["default_format"] = args.default_format
+        if hasattr(args, "diff_view") and args.diff_view:
+            update["diff_view"] = args.diff_view
 
         if update:
             config.save_config(**update)
