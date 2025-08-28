@@ -353,6 +353,16 @@ class GitLabCLIv3:
             self.cache_cmd.handle(self.config, args)
             return
 
+        # Check if user is asking for help on any command
+        if args.area in ["pipeline", "job", "mr", "merge-request", "branch"]:
+            if (hasattr(args, 'action') and args.action == "help") or \
+               (hasattr(args, 'mr_id') and args.mr_id == "help") or \
+               (hasattr(args, 'branch_name') and args.branch_name == "help"):
+                # Show help without requiring config
+                parser = self.create_parser()
+                parser.parse_args([args.area, '--help'])
+                return
+
         # Validate configuration for other commands
         valid, message = self.config.validate()
         if not valid:
@@ -376,6 +386,10 @@ class GitLabCLIv3:
             if not args.mr_id and not args.resource:
                 print("Error: Please provide MR ID or use 'gl mr --help' for help")
                 sys.exit(1)
+            elif args.mr_id == "help":
+                # Handle 'gl mr help' same as 'gl mr --help'
+                parser = self.create_parser()
+                parser.parse_args([args.area, '--help'])
             elif args.resource == "search" or (args.mr_id == "search" and not args.resource):
                 # Search MRs with filters
                 self.search_cmd.search_mrs(cli, args, output_format)
@@ -413,6 +427,10 @@ class GitLabCLIv3:
             if not args.action:
                 print("Error: Please provide pipeline ID(s) or use 'gl pipeline --help' for help")
                 sys.exit(1)
+            elif args.action == "help":
+                # Handle 'gl pipeline help' same as 'gl pipeline --help'
+                parser = self.create_parser()
+                parser.parse_args([args.area, '--help'])
             elif args.action == "list":
                 # List pipelines with filters
                 self.search_cmd.list_pipelines(cli, args, output_format)
@@ -469,6 +487,10 @@ class GitLabCLIv3:
             if not args.action:
                 print("Error: Please provide job ID(s) or use 'gl job --help' for help")
                 sys.exit(1)
+            elif args.action == "help":
+                # Handle 'gl job help' same as 'gl job --help'
+                parser = self.create_parser()
+                parser.parse_args([args.area, '--help'])
             elif args.action == "detail":
                 if args.job_id:
                     try:

@@ -182,6 +182,10 @@ gl branch                           # Shows branch info, MR count, pipeline stat
 # Show specific branch information  
 gl branch feature-xyz               # Shows feature-xyz branch info
 
+# Quick access to latest MR (great for scripting!)
+gl branch --latest                  # Shows only the most recent MR for current branch
+gl branch auth-logging --latest     # Shows latest MR for specific branch
+
 # Explore branch resources
 gl branch feature-xyz mr            # List MRs for branch
 gl branch feature-xyz mr --state all     # All MRs (opened, merged, closed)
@@ -392,6 +396,19 @@ gl job logs 111222
 ### Useful Scripting Examples
 
 ```bash
+# Shell function for your .bashrc/.zshrc - clean and simple
+open_mr() {
+    local url=$(gl branch --latest | grep "^MR_URL:" | cut -d' ' -f2)
+    if [ -n "$url" ]; then
+        open "$url"
+    else
+        echo "No MR to open"
+    fi
+}
+
+# One-liner for quick use
+open $(gl branch --latest | grep "^MR_URL:" | cut -d' ' -f2)
+
 # Open branch URL in browser
 open $(gl branch | grep "^BRANCH_URL:" | cut -d' ' -f2)
 

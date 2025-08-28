@@ -321,5 +321,3 @@ class MRsCommand(BaseCommand):
                 print(f"  ... (truncated)")
 
         print(f"\nMR_URL: {mr.web_url}")
-        print(f"MR_ID: {mr.id}")
-        print(f"MR_IID: {mr.iid}")

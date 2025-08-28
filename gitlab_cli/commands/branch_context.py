@@ -34,6 +34,11 @@ class BranchCommand(BaseCommand):
             help="Filter by state (for MRs)"
         )
         parser.add_argument(
+            "--latest",
+            action="store_true",
+            help="Show only the latest/most recent MR"
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=10,
@@ -158,6 +163,10 @@ class BranchCommand(BaseCommand):
                 print("Error: Not in a git repository or cannot determine branch")
                 return
         
+        # If --latest flag is used without specifying 'mr' resource, show latest MR
+        if args.latest and not args.resource:
+            args.resource = "mr"
+        
         # If no resource specified, show branch info
         if not args.resource or args.resource == "info":
             self.show_branch_info(cli, branch_name, output_format)
@@ -273,11 +282,20 @@ class BranchCommand(BaseCommand):
         mrs = cli.explorer.get_mrs_for_branch(branch_name, args.state)
         
         if not mrs:
-            print(f"No {args.state} merge requests found for branch '{branch_name}'")
-            return
+            # When using --latest, silently exit with error code (for scripting)
+            # Otherwise show a message for interactive use
+            if not args.latest:
+                print(f"No {args.state} merge requests found for branch '{branch_name}'")
+            import sys
+            sys.exit(1)  # Exit with error code for scripting
         
-        # Limit results
-        mrs = mrs[:args.limit]
+        # Handle --latest flag
+        if args.latest:
+            # Sort by created_at to get the most recent
+            mrs = sorted(mrs, key=lambda x: x['created_at'], reverse=True)[:1]
+        else:
+            # Limit results normally
+            mrs = mrs[:args.limit]
         
         if output_format == "json":
             print(json.dumps({"merge_requests": mrs}, indent=2))
@@ -304,7 +322,6 @@ class BranchCommand(BaseCommand):
                     }.get(mr['pipeline_status'], "❓")
                     print(f"   Pipeline: #{mr['pipeline_id']} {pipeline_icon} {mr['pipeline_status']}")
                 print(f"   MR_URL: {mr['web_url']}")
-                print(f"   MR_IID: {mr['iid']}")
     
     def show_branch_pipelines(self, cli, branch_name, args, output_format):
         """Show recent pipelines for a branch"""

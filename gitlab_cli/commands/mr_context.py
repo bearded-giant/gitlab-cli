@@ -202,9 +202,8 @@ class MRContextCommand(BaseCommand):
                 print(f"  gl mr {mr.iid} commit       # Show commits")
                 print(f"  gl mr {mr.iid} discussion   # Show discussions")
                 
-                # URLs
+                # URL
                 print(f"\nMR_URL: {mr.web_url}")
-                print(f"MR_IID: {mr.iid}")
                 
         except Exception as e:
             print(f"Error fetching MR {mr_id}: {e}")

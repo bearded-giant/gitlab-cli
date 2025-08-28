@@ -337,7 +337,6 @@ class SearchCommand(BaseCommand):
                     print(f"   Branches: {mr.source_branch} → {mr.target_branch}")
                     print(f"   Created: {created} | Updated: {updated}")
                     print(f"   MR_URL: {mr.web_url}")
-                    print(f"   MR_IID: {mr.iid}")
         
         except Exception as e:
             print(f"Error searching MRs: {e}")
