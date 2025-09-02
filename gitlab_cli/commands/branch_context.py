@@ -26,6 +26,13 @@ class BranchCommand(BaseCommand):
             help="Resource to show for branch (mr, pipeline, commit, info)"
         )
         
+        # Actions
+        parser.add_argument(
+            "--create-mr",
+            action="store_true",
+            help="Create a new MR from this branch"
+        )
+        
         # Filters
         parser.add_argument(
             "--state",
@@ -162,6 +169,11 @@ class BranchCommand(BaseCommand):
             if not branch_name:
                 print("Error: Not in a git repository or cannot determine branch")
                 return
+        
+        # Handle --create-mr flag first
+        if args.create_mr:
+            self.create_mr_for_branch(cli, branch_name, args, output_format)
+            return
         
         # If --latest flag is used without specifying 'mr' resource, show latest MR
         if args.latest and not args.resource:
@@ -415,3 +427,46 @@ class BranchCommand(BaseCommand):
         
         except Exception as e:
             print(f"Error fetching commits: {e}")
+    
+    def create_mr_for_branch(self, cli, branch_name, args, output_format):
+        """Generate URL to create a new MR for the branch"""
+        import urllib.parse
+        import webbrowser
+        
+        # Get the GitLab URL and project path
+        gitlab_url = cli.config.gitlab_url
+        project_path = cli.config.project_path
+        
+        if not gitlab_url or not project_path:
+            print("Error: GitLab URL or project path not configured")
+            return
+        
+        # Build the MR creation URL with source branch pre-filled
+        # URL format: https://gitlab.example.com/group/project/-/merge_requests/new?merge_request[source_branch]=branch-name
+        base_url = f"{gitlab_url}/{project_path}/-/merge_requests/new"
+        params = {
+            "merge_request[source_branch]": branch_name
+        }
+        # Don't set target branch - let GitLab use the repo's default
+        
+        # Build the full URL with query parameters
+        query_string = urllib.parse.urlencode(params)
+        full_url = f"{base_url}?{query_string}"
+        
+        if output_format == "json":
+            print(json.dumps({
+                "action": "create_mr",
+                "branch": branch_name,
+                "url": full_url
+            }, indent=2))
+        else:
+            print(f"\nCreate MR for branch '{branch_name}':")
+            print("-" * 80)
+            print(f"\nMR_CREATE_URL: {full_url}")
+            
+            # Open the URL in the default browser
+            try:
+                webbrowser.open(full_url)
+            except Exception as e:
+                print(f"Could not open browser automatically: {e}")
+                print("Please copy and paste the URL above into your browser")

@@ -182,6 +182,10 @@ gl branch                           # Shows branch info, MR count, pipeline stat
 # Show specific branch information  
 gl branch feature-xyz               # Shows feature-xyz branch info
 
+# Create a new MR from current branch
+gl branch --create-mr               # Opens browser to create MR with current branch pre-filled
+gl branch feature-xyz --create-mr   # Create MR from specific branch
+
 # Quick access to latest MR (great for scripting!)
 gl branch --latest                  # Shows only the most recent MR for current branch
 gl branch auth-logging --latest     # Shows latest MR for specific branch

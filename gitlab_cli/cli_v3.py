@@ -306,6 +306,7 @@ class GitLabCLIv3:
         print("Contextual Commands:")
         print("  gl branch                   # Show current branch info")
         print("  gl branch <name>            # Show specific branch info")
+        print("  gl branch --create-mr       # Create MR from current branch")
         print("  gl branch <name> mr         # Show MRs for branch")
         print("  gl branch <name> pipeline   # Show pipelines for branch")
         print("  gl branch <name> commit     # Show commits for branch\n")
