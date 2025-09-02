@@ -68,8 +68,12 @@ class SearchCommand(BaseCommand):
             # Build query parameters
             params = {}
             
-            # Status filter
-            if hasattr(args, 'status') and args.status:
+            # Status filter - handle shortcuts first
+            if hasattr(args, 'passed') and args.passed:
+                params['status'] = 'success'
+            elif hasattr(args, 'failed') and args.failed:
+                params['status'] = 'failed'
+            elif hasattr(args, 'status') and args.status:
                 params['status'] = args.status
             
             # Ref/branch filter
@@ -86,19 +90,38 @@ class SearchCommand(BaseCommand):
                     print(f"User '{args.user}' not found")
                     return
             
-            # Source filter (push, api, schedule, etc.)
-            if hasattr(args, 'source') and args.source:
+            # Source filter - handle --push shortcut
+            if hasattr(args, 'push') and args.push:
+                params['source'] = 'push'
+            elif hasattr(args, 'source') and args.source:
                 params['source'] = args.source
             
-            # Get pipelines
+            # Get pipelines - get extra to account for bot filtering
             per_page = getattr(args, 'limit', 20)
             pipelines = cli.explorer.project.pipelines.list(
-                per_page=per_page,
+                per_page=per_page * 2,  # Get extra to account for filtering
                 page=1,
                 order_by='id',
                 sort='desc',
                 **params
             )
+            
+            # Filter out GitLab Security Policy Bot pipelines
+            filtered_pipelines = []
+            for p in pipelines:
+                # Skip pipelines created by GitLab Security Policy Bot
+                if hasattr(p, 'user') and p.user:
+                    username = p.user.get('username', '')
+                    name = p.user.get('name', '')
+                    if 'security-policy-bot' in username.lower() or 'security policy bot' in name.lower():
+                        continue
+                filtered_pipelines.append(p)
+                
+                # Stop when we have enough
+                if len(filtered_pipelines) >= per_page:
+                    break
+            
+            pipelines = filtered_pipelines
             
             # Apply time filter if specified
             if hasattr(args, 'since') and args.since:
@@ -125,7 +148,30 @@ class SearchCommand(BaseCommand):
             
             # Display results
             if not pipelines:
-                print("No pipelines found matching filters")
+                filters = []
+                if 'status' in params:
+                    if hasattr(args, 'passed') and args.passed:
+                        filters.append("passed only")
+                    elif hasattr(args, 'failed') and args.failed:
+                        filters.append("failed only")
+                    else:
+                        filters.append(f"status: {params['status']}")
+                if 'source' in params:
+                    if hasattr(args, 'push') and args.push:
+                        filters.append("push only")
+                    else:
+                        filters.append(f"source: {params['source']}")
+                if 'ref' in params:
+                    filters.append(f"ref: {params['ref']}")
+                if hasattr(args, 'user') and args.user:
+                    filters.append(f"user: {args.user}")
+                if hasattr(args, 'since') and args.since:
+                    filters.append(f"since: {args.since}")
+                if hasattr(args, 'before') and args.before:
+                    filters.append(f"before: {args.before}")
+                
+                filter_msg = f" ({', '.join(filters)})" if filters else ""
+                print(f"No pipelines found in project{filter_msg}")
                 return
             
             if output_format == "json":
@@ -175,13 +221,23 @@ class SearchCommand(BaseCommand):
                         "skipped": "⏭"
                     }.get(p.status, "❓")
                     
-                    user_str = f" by @{p.user['username']}" if hasattr(p, 'user') and p.user else ""
+                    # Format user info
+                    user_str = ""
+                    if hasattr(p, 'user') and p.user:
+                        username = p.user.get('username', 'unknown')
+                        name = p.user.get('name', '')
+                        if name and name != username:
+                            user_str = f"@{username} ({name})"
+                        else:
+                            user_str = f"@{username}"
+                    
                     created = p.created_at[:19].replace('T', ' ')
                     
                     print(f"\n{status_icon} Pipeline #{p.id} - {p.status}")
                     print(f"   Branch: {p.ref}")
-                    print(f"   Source: {p.source}{user_str}")
-                    print(f"   Created: {created}")
+                    print(f"   Source: {p.source}")
+                    print(f"   Created by: {user_str}" if user_str else "   Created by: Unknown")
+                    print(f"   Created at: {created}")
                     print(f"   PIPELINE_URL: {p.web_url}")
                     print(f"   PIPELINE_ID: {p.id}")
         

@@ -261,6 +261,26 @@ class GitLabCLIv3:
             help="Filter by pipeline source"
         )
         parser.add_argument(
+            "--push",
+            action="store_true",
+            help="Show only push pipelines (shortcut for --source push)"
+        )
+        parser.add_argument(
+            "--status",
+            choices=["success", "failed", "running", "pending", "canceled", "skipped", "manual", "created"],
+            help="Filter by pipeline status"
+        )
+        parser.add_argument(
+            "--passed",
+            action="store_true",
+            help="Show only passed/successful pipelines (shortcut for --status success)"
+        )
+        parser.add_argument(
+            "--failed",
+            action="store_true",
+            help="Show only failed pipelines (shortcut for --status failed)"
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=20,

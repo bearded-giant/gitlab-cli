@@ -183,27 +183,36 @@ Format inheritance:
 # Show current branch information
 gl branch                           # Shows branch info, MR count, pipeline status
 
-# Show specific branch information  
+# Current branch resources (no need to specify branch name!)
+gl branch pipeline                  # Pipelines for CURRENT branch (newest first)
+gl branch pipelines --push          # Only push pipelines for current branch
+gl branch pipelines --failed        # Only failed pipelines for current branch
+gl branch mr                        # MRs for current branch
+gl branch commits                   # Commits for current branch
+
+# Specific branch resources (when not on that branch)
 gl branch feature-xyz               # Shows feature-xyz branch info
+gl branch feature-xyz pipeline      # Pipelines for specific branch
+gl branch feature-xyz mr            # List MRs for specific branch
 
-# Create a new MR from current branch
-gl branch --create-mr               # Opens browser to create MR with current branch pre-filled
-gl branch feature-xyz --create-mr   # Create MR from specific branch
+# Pipeline filtering for branch
+gl branch pipeline --push           # Only push pipelines (excludes merge_request_event)
+gl branch pipeline --failed         # Only failed pipelines
+gl branch pipeline --passed         # Only successful pipelines
+gl branch pipeline --status running # Pipelines with specific status
+gl branch pipeline --source web     # Pipelines from web UI
+gl branch pipeline --limit 5        # Limit number of results
 
-# Quick access to latest MR (great for scripting!)
+# MR operations
+gl branch --create-mr               # Opens browser to create MR from current branch
 gl branch --latest                  # Shows only the most recent MR for current branch
-gl branch auth-logging --latest     # Shows latest MR for specific branch
-
-# Explore branch resources
-gl branch feature-xyz mr            # List MRs for branch
-gl branch feature-xyz mr --state all     # All MRs (opened, merged, closed)
-gl branch feature-xyz pipeline      # Recent pipelines for branch
-gl branch feature-xyz commit        # Recent commits on branch
 
 # Filter options
-gl branch feature-xyz mr --limit 5  # Limit results
-gl branch main pipeline --limit 10  # Show last 10 pipelines
+gl branch mr --state all            # All MRs (opened, merged, closed)
+gl branch mr --limit 5              # Limit results
 ```
+
+**Note:** GitLab Security Policy Bot pipelines are automatically filtered out from all pipeline listings.
 
 ### Merge Request Commands (Contextual)
 
@@ -261,34 +270,45 @@ gl config show                      # Shows current diff_view setting
 ### Pipeline Commands
 
 ```bash
-# List pipelines with filters
-gl pipeline list                           # List recent pipelines
+# List pipelines at repo/project level (NEW!)
+gl pipeline list                           # List recent pipelines across all branches
+gl pipeline list --failed                  # Only failed pipelines
+gl pipeline list --passed                  # Only successful pipelines
+gl pipeline list --push                    # Only push pipelines (excludes merge_request_event)
+gl pipeline list --status running          # Pipelines with specific status
+gl pipeline list --limit 5                 # Limit number of results
+
+# Combine filters for precise results
+gl pipeline list --failed --push           # Failed push pipelines
+gl pipeline list --failed --limit 2        # Two most recent failed pipelines
+gl pipeline list --push --passed           # Successful push pipelines
+gl pipeline list --source web --failed     # Failed pipelines triggered from web
+
+# Time-based filters
 gl pipeline list --since 2d                # Pipelines from last 2 days
 gl pipeline list --since "3 hours ago"     # Pipelines from last 3 hours
 gl pipeline list --before 1w               # Pipelines older than 1 week
+gl pipeline list --failed --since 1w       # Failed pipelines from last week
+
+# User and branch filters
 gl pipeline list --user johndoe            # Pipelines by specific user
 gl pipeline list --ref main                # Pipelines for main branch
-gl pipeline list --source schedule         # Scheduled pipelines
-gl pipeline list --status failed           # Failed pipelines only
-gl pipeline list --since 2d --status failed --user johndoe  # Combine filters
+gl pipeline list --ref main --failed       # Failed pipelines on main branch
 
 # Show pipeline summary
 gl pipeline 567890
 
 # Show comprehensive pipeline details
 gl pipeline detail 567890
-
-# Show pipeline details with variables
-gl pipeline detail 567890 --show-variables
+gl pipeline detail 567890 --show-variables # Include pipeline variables
 
 # Show pipeline graph visualization (stages, jobs, test durations)
 gl pipeline graph 567890
 
-# Retry failed jobs in a pipeline
-gl pipeline retry 567890
-
-# Cancel a running pipeline
-gl pipeline cancel 567890
+# Pipeline actions
+gl pipeline retry 567890                   # Retry failed jobs in pipeline
+gl pipeline rerun 567890                   # Create NEW pipeline for same commit
+gl pipeline cancel 567890                  # Cancel a running pipeline
 
 # Show multiple pipelines
 gl pipeline 567890,567891,567892
@@ -297,18 +317,19 @@ gl pipeline 567890,567891,567892
 gl pipeline 1090389 --job-search pylint
 gl pipeline 1090389 --job-search "integration test"
 
-# Show failed jobs in pipeline
-gl pipeline 567890 --failed
-
-# Show running jobs
-gl pipeline 567890 --running
-
-# Show all jobs (not just summary)
-gl pipeline 567890 --jobs
+# Show jobs filtered by status
+gl pipeline 567890 --failed                # Show failed jobs
+gl pipeline 567890 --running               # Show running jobs
+gl pipeline 567890 --jobs                  # Show all jobs
 
 # Filter by stage
 gl pipeline 567890 --stage test
 ```
+
+**Note:** 
+- GitLab Security Policy Bot pipelines are automatically filtered out
+- All pipeline listings show the user who created each pipeline
+- `retry` retries only failed jobs, while `rerun` creates a completely new pipeline
 
 ### Job Commands
 

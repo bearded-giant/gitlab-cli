@@ -57,6 +57,21 @@ class BranchCommand(BaseCommand):
             help="Filter pipelines by source type"
         )
         parser.add_argument(
+            "--status",
+            choices=["success", "failed", "running", "pending", "canceled", "skipped", "manual", "created"],
+            help="Filter pipelines by status"
+        )
+        parser.add_argument(
+            "--passed",
+            action="store_true",
+            help="Show only passed/successful pipelines (shortcut for --status success)"
+        )
+        parser.add_argument(
+            "--failed",
+            action="store_true",
+            help="Show only failed pipelines (shortcut for --status failed)"
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=10,
@@ -390,6 +405,18 @@ class BranchCommand(BaseCommand):
             elif hasattr(args, 'source') and args.source:
                 list_params['source'] = args.source
             
+            # Add status filter if specified
+            status_filter = None
+            if hasattr(args, 'passed') and args.passed:
+                status_filter = 'success'
+            elif hasattr(args, 'failed') and args.failed:
+                status_filter = 'failed'
+            elif hasattr(args, 'status') and args.status:
+                status_filter = args.status
+            
+            if status_filter:
+                list_params['status'] = status_filter
+            
             pipelines = cli.explorer.project.pipelines.list(**list_params)
             
             # Filter out GitLab Security Policy Bot pipelines
@@ -410,11 +437,19 @@ class BranchCommand(BaseCommand):
             pipelines = filtered_pipelines
             
             if not pipelines:
-                filter_msg = ""
+                filters = []
                 if args.push:
-                    filter_msg = " (push only)"
+                    filters.append("push only")
                 elif hasattr(args, 'source') and args.source:
-                    filter_msg = f" (source: {args.source})"
+                    filters.append(f"source: {args.source}")
+                if hasattr(args, 'passed') and args.passed:
+                    filters.append("passed only")
+                elif hasattr(args, 'failed') and args.failed:
+                    filters.append("failed only")
+                elif hasattr(args, 'status') and args.status:
+                    filters.append(f"status: {args.status}")
+                
+                filter_msg = f" ({', '.join(filters)})" if filters else ""
                 print(f"No pipelines found for branch '{branch_name}'{filter_msg}")
                 return
             
