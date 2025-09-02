@@ -47,6 +47,16 @@ class BranchCommand(BaseCommand):
             help="Show only the latest/most recent MR"
         )
         parser.add_argument(
+            "--push",
+            action="store_true",
+            help="Show only push pipelines (exclude merge_request_event, etc.)"
+        )
+        parser.add_argument(
+            "--source",
+            choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
+            help="Filter pipelines by source type"
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=10,
@@ -366,15 +376,46 @@ class BranchCommand(BaseCommand):
     def show_branch_pipelines(self, cli, branch_name, args, output_format):
         """Show recent pipelines for a branch"""
         try:
-            pipelines = cli.explorer.project.pipelines.list(
-                ref=branch_name,
-                order_by='id',
-                sort='desc',
-                per_page=args.limit
-            )
+            # Build query parameters
+            list_params = {
+                'ref': branch_name,
+                'order_by': 'id',
+                'sort': 'desc',
+                'per_page': args.limit * 2  # Get extra to account for filtering
+            }
+            
+            # Add source filter if specified
+            if args.push:
+                list_params['source'] = 'push'
+            elif hasattr(args, 'source') and args.source:
+                list_params['source'] = args.source
+            
+            pipelines = cli.explorer.project.pipelines.list(**list_params)
+            
+            # Filter out GitLab Security Policy Bot pipelines
+            filtered_pipelines = []
+            for p in pipelines:
+                # Skip pipelines created by GitLab Security Policy Bot
+                if hasattr(p, 'user') and p.user:
+                    username = p.user.get('username', '')
+                    name = p.user.get('name', '')
+                    if 'security-policy-bot' in username.lower() or 'security policy bot' in name.lower():
+                        continue
+                filtered_pipelines.append(p)
+                
+                # Stop when we have enough
+                if len(filtered_pipelines) >= args.limit:
+                    break
+            
+            pipelines = filtered_pipelines
             
             if not pipelines:
-                print(f"No pipelines found for branch '{branch_name}'")
+                filter_msg = ""
+                if args.push:
+                    filter_msg = " (push only)"
+                elif hasattr(args, 'source') and args.source:
+                    filter_msg = f" (source: {args.source})"
+                print(f"No pipelines found for branch '{branch_name}'{filter_msg}")
                 return
             
             if output_format == "json":
@@ -405,12 +446,22 @@ class BranchCommand(BaseCommand):
                         "canceled": "🚫"
                     }.get(p.status, "❓")
                     
-                    user_str = f" by @{p.user['username']}" if hasattr(p, 'user') and p.user else ""
+                    # Format user info
+                    user_str = ""
+                    if hasattr(p, 'user') and p.user:
+                        username = p.user.get('username', 'unknown')
+                        name = p.user.get('name', '')
+                        if name and name != username:
+                            user_str = f"@{username} ({name})"
+                        else:
+                            user_str = f"@{username}"
+                    
                     created = p.created_at[:19].replace('T', ' ')
                     
                     print(f"\n{status_icon} Pipeline #{p.id} - {p.status}")
-                    print(f"   Source: {p.source}{user_str}")
-                    print(f"   Created: {created}")
+                    print(f"   Source: {p.source}")
+                    print(f"   Created by: {user_str}" if user_str else "   Created by: Unknown")
+                    print(f"   Created at: {created}")
                     print(f"   PIPELINE_URL: {p.web_url}")
                     print(f"   PIPELINE_ID: {p.id}")
         
