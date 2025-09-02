@@ -593,6 +593,49 @@ class PipelineCommands(BaseCommand):
                 print(f"❌ Error retrying pipeline {pipeline_id}: {e}")
             sys.exit(1)
 
+    def handle_pipeline_rerun(self, cli, pipeline_id, args, output_format):
+        """Handle pipeline rerun - create a new pipeline for the same commit"""
+        try:
+            # Get the original pipeline details
+            original_pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+            
+            # Create a new pipeline for the same ref/commit
+            new_pipeline = cli.explorer.project.pipelines.create({
+                'ref': original_pipeline.ref,
+                'variables': []  # You can add variables if needed
+            })
+            
+            if output_format == "json":
+                print(json.dumps({
+                    "action": "rerun",
+                    "original_pipeline_id": pipeline_id,
+                    "new_pipeline_id": new_pipeline.id,
+                    "status": "success",
+                    "ref": new_pipeline.ref,
+                    "sha": new_pipeline.sha,
+                    "web_url": new_pipeline.web_url
+                }, indent=2))
+            else:
+                print(f"✅ New pipeline created for same commit")
+                print(f"Original pipeline: #{pipeline_id}")
+                print(f"New pipeline: #{new_pipeline.id}")
+                print(f"Ref: {new_pipeline.ref}")
+                print(f"SHA: {new_pipeline.sha[:8]}")
+                print(f"Status: {new_pipeline.status}")
+                print(f"URL: {new_pipeline.web_url}")
+                
+        except Exception as e:
+            if output_format == "json":
+                print(json.dumps({
+                    "action": "rerun",
+                    "pipeline_id": pipeline_id,
+                    "status": "error",
+                    "error": str(e)
+                }, indent=2))
+            else:
+                print(f"❌ Error creating new pipeline for #{pipeline_id}: {e}")
+            sys.exit(1)
+
     def handle_pipeline_cancel(self, cli, pipeline_id, args, output_format):
         """Handle pipeline cancel - cancel a running pipeline"""
         try:

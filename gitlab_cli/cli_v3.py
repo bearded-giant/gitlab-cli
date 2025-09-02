@@ -207,12 +207,12 @@ class GitLabCLIv3:
         parser.add_argument(
             "action",
             nargs="?",
-            help='Pipeline ID(s) or action: <id>, <id,id,...>, "list", "detail", "graph", "retry", or "cancel"',
+            help='Pipeline ID(s) or action: <id>, <id,id,...>, "list", "detail", "graph", "retry", "rerun", or "cancel"',
         )
         parser.add_argument(
             "pipeline_id",
             nargs="?",
-            help='Pipeline ID (when using "detail", "graph", "retry", or "cancel")',
+            help='Pipeline ID (when using "detail", "graph", "retry", "rerun", or "cancel")',
         )
 
         # Status filters
@@ -305,11 +305,12 @@ class GitLabCLIv3:
         print("  cache                Manage cache\n")
         print("Contextual Commands:")
         print("  gl branch                   # Show current branch info")
+        print("  gl branch pipeline          # Show pipelines for current branch")
+        print("  gl branch mr                # Show MRs for current branch")
+        print("  gl branch commits           # Show commits for current branch")
         print("  gl branch <name>            # Show specific branch info")
-        print("  gl branch --create-mr       # Create MR from current branch")
-        print("  gl branch <name> mr         # Show MRs for branch")
-        print("  gl branch <name> pipeline   # Show pipelines for branch")
-        print("  gl branch <name> commit     # Show commits for branch\n")
+        print("  gl branch <name> pipeline   # Show pipelines for specific branch")
+        print("  gl branch --create-mr       # Create MR from current branch\n")
         print("  gl mr <id>                  # Show MR info")
         print("  gl mr <id> diff             # Show MR diff")
         print("  gl mr <id> pipeline         # Show MR pipelines")
@@ -321,6 +322,7 @@ class GitLabCLIv3:
         print("  gl pipeline detail <id>     # Show comprehensive info")
         print("  gl pipeline graph <id>      # Show pipeline graph")
         print("  gl pipeline retry <id>      # Retry failed jobs")
+        print("  gl pipeline rerun <id>      # Create new pipeline for same commit")
         print("  gl pipeline cancel <id>     # Cancel pipeline\n")
         print("  gl job <id>                 # Show job summary")
         print("  gl job detail <id>          # Show comprehensive info")
@@ -467,6 +469,17 @@ class GitLabCLIv3:
                         sys.exit(1)
                 else:
                     print("Error: 'retry' requires a pipeline ID")
+                    sys.exit(1)
+            elif args.action == "rerun":
+                if args.pipeline_id:
+                    try:
+                        pipeline_id = int(args.pipeline_id)
+                        self.pipelines_cmd.handle_pipeline_rerun(cli, pipeline_id, args, output_format)
+                    except ValueError:
+                        print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
+                        sys.exit(1)
+                else:
+                    print("Error: 'rerun' requires a pipeline ID")
                     sys.exit(1)
             elif args.action == "cancel":
                 if args.pipeline_id:

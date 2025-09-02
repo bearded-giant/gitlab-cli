@@ -101,10 +101,14 @@ The new v3 interface provides fluid, contextual discovery of resources:
 ```bash
 # Branch context - explore branch and related resources
 gl branch                          # Show current branch info
+gl branch pipeline                 # Show pipelines for CURRENT branch (newest first)
+gl branch mr                       # Show MRs for CURRENT branch
+gl branch commits                  # Show commits for CURRENT branch
+
+# Specific branch (when not on that branch)
 gl branch feature-xyz              # Show specific branch info  
-gl branch feature-xyz mr           # Show MRs for branch
-gl branch feature-xyz pipeline     # Show pipelines for branch
-gl branch feature-xyz commit       # Show commits on branch
+gl branch feature-xyz mr           # Show MRs for specific branch
+gl branch feature-xyz pipeline     # Show pipelines for specific branch
 
 # MR context - explore MR and related resources
 gl mr 1234                         # Show MR info

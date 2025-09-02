@@ -12,18 +12,19 @@ class BranchCommand(BaseCommand):
     
     def add_arguments(self, parser):
         """Add branch-specific arguments to parser"""
+        # First positional can be either a branch name or a resource type
         parser.add_argument(
-            "branch_name",
+            "branch_or_resource",
             nargs="?",
-            help="Branch name (defaults to current branch)"
+            help="Branch name or resource type (mr, pipeline, commit). Defaults to current branch info."
         )
         
-        # Subcommands for branch context
+        # Second positional is resource if first was branch name
         parser.add_argument(
             "resource",
             nargs="?",
             choices=["mr", "pipeline", "commit", "info"],
-            help="Resource to show for branch (mr, pipeline, commit, info)"
+            help="Resource to show for branch (when branch name is specified)"
         )
         
         # Actions
@@ -162,9 +163,36 @@ class BranchCommand(BaseCommand):
     
     def handle(self, cli, args, output_format):
         """Handle branch commands"""
-        # Get branch name
-        branch_name = args.branch_name
-        if not branch_name:
+        # Parse arguments intelligently
+        # First arg could be branch name or resource type
+        branch_name = None
+        resource = None
+        
+        # Check if first arg is a resource keyword
+        resource_keywords = ["mr", "mrs", "merge-request", "merge-requests", 
+                            "pipeline", "pipelines", "commit", "commits", "info"]
+        
+        if args.branch_or_resource and args.branch_or_resource.lower() in resource_keywords:
+            # First arg is a resource type, use current branch
+            resource = args.branch_or_resource.lower()
+            # Normalize plural forms
+            if resource in ["mrs", "merge-requests"]:
+                resource = "mr"
+            elif resource in ["pipelines"]:
+                resource = "pipeline"
+            elif resource in ["commits"]:
+                resource = "commit"
+            
+            branch_name = self.get_current_branch()
+            if not branch_name:
+                print("Error: Not in a git repository or cannot determine branch")
+                return
+        elif args.branch_or_resource:
+            # First arg is a branch name
+            branch_name = args.branch_or_resource
+            resource = args.resource
+        else:
+            # No args, use current branch
             branch_name = self.get_current_branch()
             if not branch_name:
                 print("Error: Not in a git repository or cannot determine branch")
@@ -176,17 +204,17 @@ class BranchCommand(BaseCommand):
             return
         
         # If --latest flag is used without specifying 'mr' resource, show latest MR
-        if args.latest and not args.resource:
-            args.resource = "mr"
+        if args.latest and not resource:
+            resource = "mr"
         
         # If no resource specified, show branch info
-        if not args.resource or args.resource == "info":
+        if not resource or resource == "info":
             self.show_branch_info(cli, branch_name, output_format)
-        elif args.resource == "mr":
+        elif resource == "mr":
             self.show_branch_mrs(cli, branch_name, args, output_format)
-        elif args.resource == "pipeline":
+        elif resource == "pipeline":
             self.show_branch_pipelines(cli, branch_name, args, output_format)
-        elif args.resource == "commit":
+        elif resource == "commit":
             self.show_branch_commits(cli, branch_name, args, output_format)
     
     def show_branch_info(self, cli, branch_name, output_format):
@@ -340,6 +368,8 @@ class BranchCommand(BaseCommand):
         try:
             pipelines = cli.explorer.project.pipelines.list(
                 ref=branch_name,
+                order_by='id',
+                sort='desc',
                 per_page=args.limit
             )
             
