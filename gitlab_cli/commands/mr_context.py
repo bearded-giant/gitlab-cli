@@ -143,15 +143,10 @@ class MRContextCommand(BaseCommand):
                 print(f"{'='*80}\n")
                 
                 # Status
-                state_icon = {
-                    "opened": "📂",
-                    "merged": "✅",
-                    "closed": "📕"
-                }.get(mr.state, "❓")
-                print(f"Status: {state_icon} {mr.state.upper()}")
+                print(f"Status: {mr.state.upper()}")
                 
                 if mr.draft if hasattr(mr, 'draft') else mr.work_in_progress:
-                    print("        📝 DRAFT")
+                    print("        DRAFT")
                 
                 # Author and assignees
                 print(f"Author: @{mr.author['username']} ({mr.author['name']})")
@@ -166,18 +161,18 @@ class MRContextCommand(BaseCommand):
                 if mr.state == "opened":
                     merge_status = getattr(mr, 'merge_status', 'unknown')
                     if merge_status == 'can_be_merged':
-                        print("Merge Status: ✅ Can be merged")
+                        print("Merge Status: Can be merged")
                     elif merge_status == 'cannot_be_merged':
-                        print("Merge Status: ❌ Has conflicts")
+                        print("Merge Status: Has conflicts")
                     else:
                         print(f"Merge Status: {merge_status}")
                 
                 # Approvals
                 if approvals:
                     if approvals.approved:
-                        print(f"Approvals: ✅ Approved ({approvals.approvals_required} required)")
+                        print(f"Approvals: Approved ({approvals.approvals_required} required)")
                     else:
-                        print(f"Approvals: ⏳ {approvals.approvals_left} more needed ({approvals.approvals_required} required)")
+                        print(f"Approvals: {approvals.approvals_left} more needed ({approvals.approvals_required} required)")
                 
                 # Changes summary
                 changes_list = changes.get('changes', [])
@@ -188,12 +183,7 @@ class MRContextCommand(BaseCommand):
                 # Recent pipeline
                 if hasattr(mr, 'head_pipeline') and mr.head_pipeline:
                     p = mr.head_pipeline
-                    status_icon = {
-                        "success": "✅",
-                        "failed": "❌",
-                        "running": "🔄"
-                    }.get(p['status'], "❓")
-                    print(f"\nLatest Pipeline: {status_icon} {p['status']} (#{p['id']})")
+                    print(f"\nLatest Pipeline: {p['status']} (#{p['id']})")
                 
                 # Quick actions
                 print(f"\nQuick Actions:")
@@ -449,36 +439,39 @@ class MRContextCommand(BaseCommand):
         """Show pipelines for MR"""
         try:
             mr = cli.explorer.project.mergerequests.get(mr_id)
-            pipelines = mr.pipelines()
+            pipelines = mr.pipelines.list(all=True)
             
             if not pipelines:
                 print(f"No pipelines found for MR !{mr.iid}")
                 return
             
-            # Limit results
+            # Limit results to most recent pipelines
             pipelines = pipelines[:args.limit]
             
             if output_format == "json":
-                print(json.dumps({"pipelines": pipelines}, indent=2))
+                pipeline_data = [{
+                    "id": p.id,
+                    "status": p.status,
+                    "sha": p.sha,
+                    "created_at": p.created_at,
+                    "web_url": p.web_url
+                } for p in pipelines]
+                print(json.dumps({"pipelines": pipeline_data}, indent=2))
             else:
-                print(f"\nPipelines for MR !{mr.iid}:")
+                if len(pipelines) < args.limit:
+                    print(f"\nPipelines for MR !{mr.iid} (showing all {len(pipelines)}):")
+                else:
+                    print(f"\nPipelines for MR !{mr.iid} (showing {args.limit} most recent):")
                 print("-" * 80)
                 
                 for p in pipelines:
-                    status_icon = {
-                        "success": "✅",
-                        "failed": "❌",
-                        "running": "🔄",
-                        "pending": "⏳"
-                    }.get(p['status'], "❓")
+                    created = p.created_at[:19].replace('T', ' ')
                     
-                    created = p['created_at'][:19].replace('T', ' ')
-                    
-                    print(f"\n{status_icon} Pipeline #{p['id']} - {p['status']}")
-                    print(f"   SHA: {p['sha'][:8]}")
+                    print(f"\nPipeline #{p.id} - {p.status}")
+                    print(f"   SHA: {p.sha[:8]}")
                     print(f"   Created: {created}")
-                    print(f"   PIPELINE_ID: {p['id']}")
-                    print(f"   PIPELINE_URL: {p['web_url']}")
+                    print(f"   PIPELINE_ID: {p.id}")
+                    print(f"   PIPELINE_URL: {p.web_url}")
                     
         except Exception as e:
             print(f"Error fetching pipelines for MR {mr_id}: {e}")

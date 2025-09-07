@@ -101,10 +101,10 @@ class MRsCommand(BaseCommand):
             if hasattr(mr, "head_pipeline") and mr.head_pipeline:
                 p_status = mr.head_pipeline.get("status", "unknown")
                 p_color = {
-                    "success": "\033[92m✅",
-                    "failed": "\033[91m❌",
-                    "running": "\033[93m🔄",
-                }.get(p_status, "⏸")
+                    "success": "\033[92m",
+                    "failed": "\033[91m",
+                    "running": "\033[93m",
+                }.get(p_status, "")
                 print(f"Pipeline: {p_color} {p_status}\033[0m (ID: {mr.head_pipeline.get('id')})")
 
             if args.pipelines:
@@ -114,10 +114,10 @@ class MRsCommand(BaseCommand):
                     print("\nRecent Pipelines:")
                     for p in pipelines:
                         status_icon = {
-                            "success": "✅",
-                            "failed": "❌",
-                            "running": "🔄",
-                        }.get(p["status"], "⏸")
+                            "success": "[SUCCESS]",
+                            "failed": "[FAILED]",
+                            "running": "[RUNNING]",
+                        }.get(p["status"], "[PENDING]")
                         print(f"  {status_icon} {p['id']} - {p['status']} ({p['created_at'][:16]})")
 
             if args.full and mr.description:
@@ -228,7 +228,7 @@ class MRsCommand(BaseCommand):
 
         print(f"Status:       {status_color}{mr.state.upper()}\033[0m")
         if getattr(mr, "draft", False):
-            print(f"              📝 DRAFT")
+            print(f"              DRAFT")
 
         print(f"Author:       {mr.author['name']} (@{mr.author['username']})")
 
@@ -259,16 +259,16 @@ class MRsCommand(BaseCommand):
         if mr.state == "opened":
             print(f"\nMerge Status:")
             if getattr(mr, "has_conflicts", False):
-                print(f"  ❌ Has conflicts")
+                print(f"  Has conflicts")
             if getattr(mr, "work_in_progress", False):
-                print(f"  📝 Work in progress")
+                print(f"  Work in progress")
             if getattr(mr, "merge_when_pipeline_succeeds", False):
-                print(f"  🔄 Set to merge when pipeline succeeds")
+                print(f"  Set to merge when pipeline succeeds")
             if hasattr(mr, "blocking_discussions_resolved"):
                 if mr.blocking_discussions_resolved:
-                    print(f"  ✅ All discussions resolved")
+                    print(f"  All discussions resolved")
                 else:
-                    print(f"  💬 Unresolved discussions")
+                    print(f"  Unresolved discussions")
 
         # Diff stats
         if hasattr(mr, "additions") or hasattr(mr, "deletions"):
@@ -284,10 +284,10 @@ class MRsCommand(BaseCommand):
             p = mr.head_pipeline
             p_status = p.get("status", "unknown")
             p_color = {
-                "success": "\033[92m✅",
-                "failed": "\033[91m❌",
-                "running": "\033[93m🔄",
-            }.get(p_status, "⏸")
+                "success": "\033[92m",
+                "failed": "\033[91m",
+                "running": "\033[93m",
+            }.get(p_status, "")
             print(f"\nCurrent Pipeline:")
             print(f"  {p_color} {p_status}\033[0m (ID: {p.get('id')})")
             print(f"  SHA: {p.get('sha', '')[:8]}")
@@ -298,10 +298,10 @@ class MRsCommand(BaseCommand):
             print(f"\nRecent Pipelines:")
             for p in pipelines:
                 status_icon = {
-                    "success": "✅",
-                    "failed": "❌",
-                    "running": "🔄",
-                }.get(p["status"], "⏸")
+                    "success": "[SUCCESS]",
+                    "failed": "[FAILED]",
+                    "running": "[RUNNING]",
+                }.get(p["status"], "[PENDING]")
                 print(f"  {status_icon} {p['id']} - {p['status']} ({p['created_at'][:16]})")
 
         # Labels and milestone

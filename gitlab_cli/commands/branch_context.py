@@ -297,7 +297,7 @@ class BranchCommand(BaseCommand):
             if info.get("protected"):
                 status_parts.append("🔒 Protected")
             if info.get("merged"):
-                status_parts.append("✅ Merged")
+                status_parts.append("Merged")
             
             if status_parts:
                 print(f"Status: {' | '.join(status_parts)}")
@@ -325,10 +325,10 @@ class BranchCommand(BaseCommand):
             print(f"  Pipelines: {pipeline_count} recent", end="")
             if latest_pipeline:
                 status_icon = {
-                    "success": "✅",
-                    "failed": "❌",
-                    "running": "🔄"
-                }.get(latest_pipeline.status, "❓")
+                    "success": "[SUCCESS]",
+                    "failed": "[FAILED]",
+                    "running": "[RUNNING]"
+                }.get(latest_pipeline.status, "[UNKNOWN]")
                 print(f" (latest: {status_icon} {latest_pipeline.status})", end="")
             print()
             
@@ -369,23 +369,14 @@ class BranchCommand(BaseCommand):
             print("-" * 80)
             
             for mr in mrs:
-                state_icon = {
-                    "opened": "📂",
-                    "merged": "✅",
-                    "closed": "📕"
-                }.get(mr['state'], "❓")
-                
-                print(f"\n{state_icon} !{mr['iid']}: {mr['title']}")
+                print(f"\n!{mr['iid']}: {mr['title']}")
+                print(f"   State: {mr['state']}")
                 print(f"   Author: @{mr['author']}")
                 print(f"   Target: {mr['target_branch']}")
                 print(f"   Created: {mr['created_at'][:10]}")
                 if mr['pipeline_id']:
-                    pipeline_icon = {
-                        "success": "✅",
-                        "failed": "❌",
-                        "running": "🔄"
-                    }.get(mr['pipeline_status'], "❓")
-                    print(f"   Pipeline: #{mr['pipeline_id']} {pipeline_icon} {mr['pipeline_status']}")
+                    print(f"   Pipeline: #{mr['pipeline_id']} {mr['pipeline_status']}")
+                print(f"   MR_ID: {mr['iid']}")
                 print(f"   MR_URL: {mr['web_url']}")
     
     def show_branch_pipelines(self, cli, branch_name, args, output_format):
@@ -417,7 +408,7 @@ class BranchCommand(BaseCommand):
             if status_filter:
                 list_params['status'] = status_filter
             
-            pipelines = cli.explorer.project.pipelines.list(**list_params)
+            pipelines = cli.explorer.project.pipelines.list(**list_params, get_all=False)
             
             # Filter out GitLab Security Policy Bot pipelines
             filtered_pipelines = []
@@ -474,12 +465,12 @@ class BranchCommand(BaseCommand):
                 
                 for p in pipelines:
                     status_icon = {
-                        "success": "✅",
-                        "failed": "❌",
-                        "running": "🔄",
-                        "pending": "⏳",
-                        "canceled": "🚫"
-                    }.get(p.status, "❓")
+                        "success": "[SUCCESS]",
+                        "failed": "[FAILED]",
+                        "running": "[RUNNING]",
+                        "pending": "[PENDING]",
+                        "canceled": "[CANCELED]"
+                    }.get(p.status, "[UNKNOWN]")
                     
                     # Format user info
                     user_str = ""

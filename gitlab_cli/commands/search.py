@@ -68,12 +68,8 @@ class SearchCommand(BaseCommand):
             # Build query parameters
             params = {}
             
-            # Status filter - handle shortcuts first
-            if hasattr(args, 'passed') and args.passed:
-                params['status'] = 'success'
-            elif hasattr(args, 'failed') and args.failed:
-                params['status'] = 'failed'
-            elif hasattr(args, 'status') and args.status:
+            # Status filter
+            if hasattr(args, 'status') and args.status:
                 params['status'] = args.status
             
             # Ref/branch filter
@@ -150,12 +146,7 @@ class SearchCommand(BaseCommand):
             if not pipelines:
                 filters = []
                 if 'status' in params:
-                    if hasattr(args, 'passed') and args.passed:
-                        filters.append("passed only")
-                    elif hasattr(args, 'failed') and args.failed:
-                        filters.append("failed only")
-                    else:
-                        filters.append(f"status: {params['status']}")
+                    filters.append(f"status: {params['status']}")
                 if 'source' in params:
                     if hasattr(args, 'push') and args.push:
                         filters.append("push only")

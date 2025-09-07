@@ -188,7 +188,7 @@ class GitLabCLIv3:
             "--limit",
             type=int,
             default=20,
-            help="Maximum number of MRs to show (default: 20)"
+            help="Maximum number of items to show (default: 20)"
         )
         parser.add_argument(
             "--format",
@@ -238,53 +238,44 @@ class GitLabCLIv3:
         )
         parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
         
-        # Add time-based filters for list action
+        # Add filters that apply to pipeline list action
+        # Note: These are for filtering pipelines, not jobs within a pipeline
         parser.add_argument(
             "--since",
-            help="Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
+            help="(list) Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
         )
         parser.add_argument(
             "--before", 
-            help="Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
+            help="(list) Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
         )
         parser.add_argument(
             "--user",
-            help="Filter by username who triggered the pipeline"
+            help="(list) Filter by username who triggered the pipeline"
         )
         parser.add_argument(
             "--ref",
-            help="Filter by ref/branch name"
+            help="(list) Filter by ref/branch name"
         )
         parser.add_argument(
             "--source",
             choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
-            help="Filter by pipeline source"
+            help="(list) Filter by pipeline source"
         )
         parser.add_argument(
             "--push",
             action="store_true",
-            help="Show only push pipelines (shortcut for --source push)"
+            help="(list) Show only push pipelines (shortcut for --source push)"
         )
         parser.add_argument(
             "--status",
             choices=["success", "failed", "running", "pending", "canceled", "skipped", "manual", "created"],
-            help="Filter by pipeline status"
-        )
-        parser.add_argument(
-            "--passed",
-            action="store_true",
-            help="Show only passed/successful pipelines (shortcut for --status success)"
-        )
-        parser.add_argument(
-            "--failed",
-            action="store_true",
-            help="Show only failed pipelines (shortcut for --status failed)"
+            help="(list) Filter by pipeline status"
         )
         parser.add_argument(
             "--limit",
             type=int,
             default=20,
-            help="Maximum number of pipelines to show (default: 20)"
+            help="Maximum number of results to show (default: 20)"
         )
 
     def _add_job_parser(self, subparsers):
