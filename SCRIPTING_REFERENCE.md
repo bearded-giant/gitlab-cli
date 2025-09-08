@@ -64,6 +64,22 @@ gl pipeline list
 gl job 67890
 # Outputs: JOB_ID: 67890
 #          JOB_URL: https://gitlab.example.com/.../jobs/67890
+
+# Tail job logs in real-time
+gl job tail 67890
+```
+
+### Following Pipeline Progress
+
+```bash
+# Follow a pipeline's progress (auto-refreshes every 5 seconds)
+gl pipeline 12345 --follow
+
+# This will:
+# - Show all stages and jobs with their status
+# - Display recent output from running jobs
+# - Auto-refresh until pipeline completes
+# - Exit when pipeline finishes (success/failed/canceled)
 ```
 
 ### Search Commands

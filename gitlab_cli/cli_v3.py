@@ -277,6 +277,11 @@ class GitLabCLIv3:
             default=20,
             help="Maximum number of results to show (default: 20)"
         )
+        parser.add_argument(
+            "--follow",
+            action="store_true",
+            help="Follow pipeline progress, auto-tail running jobs"
+        )
 
     def _add_job_parser(self, subparsers):
         """Add job command parser"""
@@ -506,7 +511,11 @@ class GitLabCLIv3:
             else:
                 # It's pipeline IDs
                 ids = self.pipelines_cmd.parse_ids(args.action)
-                self.pipelines_cmd.handle_pipelines(cli, ids, args, output_format)
+                # Check if --follow flag is set and we have a single pipeline
+                if getattr(args, 'follow', False) and len(ids) == 1:
+                    self.pipelines_cmd.handle_pipeline_follow(cli, ids[0], args, output_format)
+                else:
+                    self.pipelines_cmd.handle_pipelines(cli, ids, args, output_format)
 
         elif args.area == "job":
             if not args.action:

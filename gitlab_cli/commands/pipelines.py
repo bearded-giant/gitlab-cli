@@ -2,6 +2,7 @@
 
 import sys
 import json
+import time
 from collections import defaultdict
 from .base import BaseCommand
 
@@ -775,15 +776,124 @@ class PipelineCommands(BaseCommand):
     def _get_status_icon(self, status):
         """Get icon for job/pipeline status"""
         return {
-            "success": "✅",
-            "failed": "❌",
-            "running": "🔄",
-            "pending": "⏳",
-            "canceled": "🚫",
-            "skipped": "⏭",
-            "manual": "🎮",
-            "created": "🆕"
-        }.get(status, "❓")
+            "success": "[SUCCESS]",
+            "failed": "[FAILED]",
+            "running": "[RUNNING]",
+            "pending": "[PENDING]",
+            "canceled": "[CANCELED]",
+            "skipped": "[SKIPPED]",
+            "manual": "[MANUAL]",
+            "created": "[CREATED]"
+        }.get(status, "[UNKNOWN]")
+    
+    def handle_pipeline_follow(self, cli, pipeline_id, args, output_format):
+        """Follow pipeline progress, auto-tail running jobs"""
+        try:
+            print(f"Following pipeline #{pipeline_id}...")
+            print("Press Ctrl+C to stop following\n")
+            print("=" * 80)
+            
+            completed_statuses = ["success", "failed", "canceled", "skipped"]
+            poll_interval = 5  # seconds
+            last_running_job = None
+            job_tail_process = None
+            
+            while True:
+                try:
+                    # Get pipeline and jobs status
+                    pipeline = cli.explorer.project.pipelines.get(pipeline_id)
+                    jobs = pipeline.jobs.list(all=True)
+                    
+                    # Clear screen for fresh display
+                    print("\033[H\033[J", end="")  # Clear screen
+                    print(f"Pipeline #{pipeline_id} - {self._get_status_icon(pipeline.status)} {pipeline.status.upper()}")
+                    print(f"SHA: {pipeline.sha[:8]} | Ref: {pipeline.ref}")
+                    print("=" * 80)
+                    
+                    # Organize jobs by stage
+                    stages = defaultdict(list)
+                    stage_order = []
+                    running_jobs = []
+                    failed_jobs = []
+                    
+                    for job in jobs:
+                        if job.stage not in stage_order:
+                            stage_order.append(job.stage)
+                        stages[job.stage].append(job)
+                        
+                        if job.status == "running":
+                            running_jobs.append(job)
+                        elif job.status == "failed" and not job.allow_failure:
+                            failed_jobs.append(job)
+                    
+                    # Display stages and jobs
+                    for stage in stage_order:
+                        print(f"\nStage: {stage}")
+                        for job in stages[stage]:
+                            duration = f"({cli.explorer.format_duration(job.duration)})" if job.duration else ""
+                            status_icon = self._get_status_icon(job.status)
+                            print(f"  {status_icon} {job.name} {duration}")
+                    
+                    print("\n" + "=" * 80)
+                    
+                    # Handle running jobs
+                    if running_jobs:
+                        current_job = running_jobs[0]  # Focus on first running job
+                        print(f"\nCurrently running: {current_job.name} (#{current_job.id})")
+                        
+                        # If it's a different job than we were tailing, show recent logs
+                        if last_running_job != current_job.id:
+                            last_running_job = current_job.id
+                            print("\nRecent output:")
+                            print("-" * 40)
+                            
+                            # Get last few lines of the job log
+                            try:
+                                trace = current_job.trace()
+                                if isinstance(trace, bytes):
+                                    trace = trace.decode("utf-8", errors="replace")
+                                
+                                # Show last 10 lines
+                                lines = trace.split('\n')
+                                recent_lines = lines[-10:] if len(lines) > 10 else lines
+                                for line in recent_lines:
+                                    if line.strip():
+                                        print(f"  {line[:100]}")  # Truncate long lines
+                            except:
+                                print("  (Unable to fetch job logs)")
+                    
+                    # Check if pipeline is complete
+                    if pipeline.status in completed_statuses:
+                        print(f"\n{'='*80}")
+                        print(f"Pipeline completed with status: {pipeline.status.upper()}")
+                        
+                        if failed_jobs:
+                            print(f"\nFailed jobs:")
+                            for job in failed_jobs:
+                                print(f"  - {job.name} (#{job.id})")
+                                print(f"    Use 'gl job logs {job.id}' to see details")
+                        
+                        print(f"\nTotal duration: {cli.explorer.format_duration(pipeline.duration)}")
+                        break
+                    
+                    # Show next refresh time
+                    print(f"\nRefreshing in {poll_interval} seconds... (Ctrl+C to stop)")
+                    
+                    # Wait before next poll
+                    time.sleep(poll_interval)
+                    
+                except KeyboardInterrupt:
+                    print("\n\nStopped following pipeline")
+                    sys.exit(0)
+                except Exception as e:
+                    print(f"\nError refreshing pipeline status: {e}")
+                    time.sleep(poll_interval)
+                    
+        except KeyboardInterrupt:
+            print("\n\nStopped following pipeline")
+            sys.exit(0)
+        except Exception as e:
+            self.output_error(f"Error following pipeline {pipeline_id}: {e}", output_format)
     
     def _display_test_duration_graph(self, stages, stage_order):
         """Display duration graph for parallel test jobs"""
