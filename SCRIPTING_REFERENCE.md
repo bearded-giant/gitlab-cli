@@ -25,6 +25,10 @@ gl branch mr | grep MR_ID: | awk '{print $2}'
 gl branch pipeline
 # Outputs: PIPELINE_ID: 12345
 #          PIPELINE_URL: https://gitlab.example.com/.../pipelines/12345
+
+# Open branch in browser
+gl branch --open                    # Opens current branch
+gl branch feature-xyz --open        # Opens specific branch
 ```
 
 ### MR Commands

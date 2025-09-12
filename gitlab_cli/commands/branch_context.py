@@ -2,6 +2,8 @@
 
 import subprocess
 import json
+import webbrowser
+import urllib.parse
 from datetime import datetime
 from typing import Optional
 from .base import BaseCommand
@@ -32,6 +34,11 @@ class BranchCommand(BaseCommand):
             "--create-mr",
             action="store_true",
             help="Create a new MR from this branch"
+        )
+        parser.add_argument(
+            "--open",
+            action="store_true",
+            help="Open the branch in web browser"
         )
         
         # Filters
@@ -226,6 +233,11 @@ class BranchCommand(BaseCommand):
         # Handle --create-mr flag first
         if args.create_mr:
             self.create_mr_for_branch(cli, branch_name, args, output_format)
+            return
+        
+        # Handle --open flag to open branch in browser
+        if args.open:
+            self.open_branch_in_browser(cli, branch_name)
             return
         
         # If --latest flag is used without specifying 'mr' resource, show latest MR
@@ -576,4 +588,30 @@ class BranchCommand(BaseCommand):
                 webbrowser.open(full_url)
             except Exception as e:
                 print(f"Could not open browser automatically: {e}")
-                print("Please copy and paste the URL above into your browser")
+    
+    def open_branch_in_browser(self, cli, branch_name):
+        """Open the branch in web browser"""
+        try:
+            # Get project web URL
+            project = cli.explorer.project
+            project_url = project.web_url
+            
+            # URL encode the branch name for safety
+            encoded_branch = urllib.parse.quote(branch_name, safe='')
+            
+            # Construct the branch URL
+            branch_url = f"{project_url}/-/tree/{encoded_branch}"
+            
+            print(f"Opening branch '{branch_name}' in browser...")
+            print(f"URL: {branch_url}")
+            
+            # Open the URL in the default browser
+            try:
+                webbrowser.open(branch_url)
+                print("Browser opened successfully")
+            except Exception as e:
+                print(f"Could not open browser: {e}")
+                print(f"You can manually open: {branch_url}")
+                
+        except Exception as e:
+            print(f"Error opening branch in browser: {e}")
