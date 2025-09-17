@@ -40,6 +40,11 @@ class BranchCommand(BaseCommand):
             action="store_true",
             help="Open the branch in web browser"
         )
+        parser.add_argument(
+            "--open-mr",
+            action="store_true",
+            help="Open the MR in web browser"
+        )
         
         # Filters
         parser.add_argument(
@@ -238,6 +243,11 @@ class BranchCommand(BaseCommand):
         # Handle --open flag to open branch in browser
         if args.open:
             self.open_branch_in_browser(cli, branch_name)
+            return
+
+        # Handle --open-mr flag to open MR in browser
+        if args.open_mr:
+            self.open_mr_in_browser(cli, branch_name)
             return
         
         # If --latest flag is used without specifying 'mr' resource, show latest MR
@@ -595,16 +605,16 @@ class BranchCommand(BaseCommand):
             # Get project web URL
             project = cli.explorer.project
             project_url = project.web_url
-            
+
             # URL encode the branch name for safety
             encoded_branch = urllib.parse.quote(branch_name, safe='')
-            
+
             # Construct the branch URL
             branch_url = f"{project_url}/-/tree/{encoded_branch}"
-            
+
             print(f"Opening branch '{branch_name}' in browser...")
             print(f"URL: {branch_url}")
-            
+
             # Open the URL in the default browser
             try:
                 webbrowser.open(branch_url)
@@ -612,6 +622,33 @@ class BranchCommand(BaseCommand):
             except Exception as e:
                 print(f"Could not open browser: {e}")
                 print(f"You can manually open: {branch_url}")
-                
+
         except Exception as e:
             print(f"Error opening branch in browser: {e}")
+
+    def open_mr_in_browser(self, cli, branch_name):
+        """Open the MR for the branch in web browser"""
+        try:
+            # Get open MRs for this branch
+            mrs = cli.explorer.get_mrs_for_branch(branch_name, "opened")
+
+            if not mrs:
+                print(f"No open MRs found for branch '{branch_name}'")
+                print("Tip: Use 'gl branch --create-mr' to create one")
+                return
+
+            # Open the first/latest MR
+            mr = mrs[0]
+            mr_url = mr['web_url']
+            print(f"Opening MR !{mr['iid']}: {mr['title']}")
+            print(f"MR_URL: {mr_url}")
+
+            try:
+                webbrowser.open(mr_url)
+                print("Browser opened successfully")
+            except Exception as e:
+                print(f"Could not open browser: {e}")
+                print(f"You can manually open: {mr_url}")
+
+        except Exception as e:
+            print(f"Error opening MR in browser: {e}")

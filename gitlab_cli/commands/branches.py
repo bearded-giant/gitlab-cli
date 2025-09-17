@@ -2,6 +2,7 @@
 
 import sys
 import subprocess
+import webbrowser
 from .base import BaseCommand
 
 
@@ -23,6 +24,9 @@ class BranchesCommand(BaseCommand):
             "--latest", action="store_true", help="Show only the latest MR"
         )
         parser.add_argument(
+            "--open", action="store_true", help="Open the MR in web browser (opens latest if multiple)"
+        )
+        parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
@@ -38,6 +42,30 @@ class BranchesCommand(BaseCommand):
             else:
                 self.output_error("Not in a git repository or cannot determine branch")
 
-        # Use existing command
+        # Handle --open flag
+        if args.open:
+            # Get MRs for the branch
+            mrs = cli.explorer.get_mrs_for_branch(args.branch_name, args.state)
+
+            if not mrs:
+                print(f"No {args.state} MRs found for branch '{args.branch_name}'")
+                return
+
+            # Open the latest or first MR
+            mr_to_open = mrs[0] if args.latest or len(mrs) == 1 else mrs[0]
+            mr_url = mr_to_open['web_url']
+
+            print(f"Opening MR !{mr_to_open['iid']}: {mr_to_open['title']}")
+            print(f"MR_URL: {mr_url}")
+
+            try:
+                webbrowser.open(mr_url)
+                print("Browser opened successfully")
+            except Exception as e:
+                print(f"Could not open browser: {e}")
+                print(f"You can manually open: {mr_url}")
+            return
+
+        # Use existing command for listing MRs
         args.format = output_format
         cli.cmd_branch_mrs(args)
