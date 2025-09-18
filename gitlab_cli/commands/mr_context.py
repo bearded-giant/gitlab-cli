@@ -73,8 +73,6 @@ class MRContextCommand(BaseCommand):
         """Get diff view preference from args or config"""
         if args.view:
             return args.view
-        
-        # Check config for default diff view
         config_view = getattr(cli.config, 'diff_view', 'unified')
         if not config_view:
             config_view = 'unified'
@@ -102,8 +100,6 @@ class MRContextCommand(BaseCommand):
         """Show comprehensive MR information"""
         try:
             mr = cli.explorer.project.mergerequests.get(mr_id)
-            
-            # Get additional details
             changes = mr.changes()
             approvals = None
             try:
@@ -211,22 +207,16 @@ class MRContextCommand(BaseCommand):
                 return
             
             if args.stats:
-                # Show statistics
+
                 self.show_diff_stats(changes)
                 return
-            
-            # Get view preference
             view_mode = self.get_diff_view_preference(cli, args)
-            
-            # Filter by file if specified
             changes_list = changes.get('changes', [])
             if args.file:
                 changes_list = [c for c in changes_list if args.file in c['new_path']]
                 if not changes_list:
                     print(f"No changes found for file: {args.file}")
                     return
-            
-            # Display diffs based on view mode
             for change in changes_list:
                 if view_mode == "split":
                     self.show_split_diff(change, args)
@@ -255,8 +245,6 @@ class MRContextCommand(BaseCommand):
             deletions = change.get('removed_lines', 0)
             total_additions += additions
             total_deletions += deletions
-            
-            # Create visual bar
             max_width = 50
             total_changes = additions + deletions
             if total_changes > 0:
@@ -330,7 +318,7 @@ class MRContextCommand(BaseCommand):
         
         for line in lines:
             if line.startswith('@@'):
-                # Parse hunk header
+
                 match = re.match(r'@@ -(\d+),?\d* \+(\d+),?\d* @@', line)
                 if match:
                     current_line_old = int(match.group(1))
@@ -372,8 +360,6 @@ class MRContextCommand(BaseCommand):
         if not diff:
             print("(No changes or binary file)")
             return
-        
-        # Parse diff into old and new sections
         lines = diff.split('\n')
         old_lines = []
         new_lines = []

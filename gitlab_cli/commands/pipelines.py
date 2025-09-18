@@ -76,10 +76,8 @@ class PipelineCommands(BaseCommand):
     def search_pipeline_jobs(self, cli, pipeline_id, search_pattern, output_format):
         """Search for jobs in a pipeline by name pattern"""
         try:
-            # Get all jobs for the pipeline, including bridges (trigger jobs)
-            pipeline = cli.explorer.project.pipelines.get(pipeline_id)
 
-            # Get regular jobs
+            pipeline = cli.explorer.project.pipelines.get(pipeline_id)
             jobs = pipeline.jobs.list(all=True)
 
             # Also get bridges (trigger jobs) - these are shown as "Trigger job" in UI
@@ -89,8 +87,6 @@ class PipelineCommands(BaseCommand):
             except:
                 # If bridges API is not available, just use regular jobs
                 all_jobs = list(jobs)
-
-            # Filter jobs by name pattern (case-insensitive)
             pattern_lower = search_pattern.lower()
             matching_jobs = [
                 job for job in all_jobs if pattern_lower in job.name.lower()
@@ -151,7 +147,7 @@ class PipelineCommands(BaseCommand):
                 print("-" * 60)
 
                 for job in matching_jobs:
-                    # Check if job is allowed to fail and has failed
+
                     is_allowed_failure = (
                         getattr(job, "allow_failure", False) and job.status == "failed"
                     )
@@ -169,8 +165,6 @@ class PipelineCommands(BaseCommand):
                             "manual": "👆",
                         }.get(job.status, "⏸")
                         status_text = job.status
-
-                    # Check if it's a bridge/trigger job
                     job_type = (
                         " (Trigger job)" if hasattr(job, "downstream_pipeline") else ""
                     )
@@ -184,8 +178,6 @@ class PipelineCommands(BaseCommand):
                     duration = getattr(job, "duration", None)
                     if duration is not None:
                         print(f"   Duration: {cli.explorer.format_duration(duration)}")
-
-                    # Show downstream pipeline for trigger jobs
                     if hasattr(job, "downstream_pipeline") and job.downstream_pipeline:
                         downstream = job.downstream_pipeline
                         print(
@@ -204,7 +196,7 @@ class PipelineCommands(BaseCommand):
 
     def show_pipeline_summary(self, cli, pipeline_id, args, output_format):
         """Show pipeline summary"""
-        # Show cache location if verbose
+
         if cli.verbose:
             from pathlib import Path
             cache_path = Path(cli.explorer.db_file)
@@ -260,8 +252,6 @@ class PipelineCommands(BaseCommand):
             if summary["pending"] > 0:
                 print(f"{'Pending':<15} {summary['pending']:>10}")
             print("-" * 60)
-
-            # Show failed jobs in table format
             if summary["failed_jobs"]:
                 print("\nFailed Jobs:")
                 print("-" * 80)
@@ -300,8 +290,6 @@ class PipelineCommands(BaseCommand):
             if summary["skipped"] > 0:
                 print(f"⏭ {summary['skipped']} skipped", end="")
             print()
-
-            # Show failed jobs if any
             if summary["failed_jobs"]:
                 print("\nFailed Jobs:")
                 for job in summary["failed_jobs"][:5]:
@@ -313,10 +301,8 @@ class PipelineCommands(BaseCommand):
     def handle_pipeline_detail(self, cli, pipeline_id, args, output_format):
         """Handle pipeline detail subcommand - show comprehensive pipeline information"""
         try:
-            # Get pipeline details
+
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
-            
-            # Get pipeline variables if requested
             pipeline_variables = None
             if getattr(args, 'show_variables', False):
                 try:
@@ -325,8 +311,6 @@ class PipelineCommands(BaseCommand):
                     # Some pipelines might not have variables accessible
                     if cli.verbose:
                         print(f"Warning: Could not fetch variables: {e}")
-
-            # Get job summary
             summary = cli.explorer.get_job_status_summary(
                 pipeline_id, verbose=cli.verbose
             )
@@ -384,8 +368,6 @@ class PipelineCommands(BaseCommand):
                     },
                     "stages": summary["stages"],
                 }
-                
-                # Add variables if fetched
                 if pipeline_variables is not None:
                     output["variables"] = [
                         {
@@ -494,8 +476,6 @@ class PipelineCommands(BaseCommand):
                     print(f"  Skipped:    ⏭ {summary['skipped']}")
                 if summary["pending"] > 0:
                     print(f"  Pending:    ⏸ {summary['pending']}")
-
-                # Show stage breakdown
                 if summary["stages"]:
                     print(f"\nStages:")
                     for stage_name, stage_info in summary["stages"].items():
@@ -511,8 +491,6 @@ class PipelineCommands(BaseCommand):
                         if stage_info["failed_jobs"]:
                             for job in stage_info["failed_jobs"][:3]:
                                 print(f"      ❌ {job['id']} - {job['name']}")
-
-                # Show variables if requested
                 if pipeline_variables is not None and len(pipeline_variables) > 0:
                     print(f"\n{'='*60}")
                     print("Pipeline Variables:")
@@ -597,10 +575,8 @@ class PipelineCommands(BaseCommand):
     def handle_pipeline_rerun(self, cli, pipeline_id, args, output_format):
         """Handle pipeline rerun - create a new pipeline for the same commit"""
         try:
-            # Get the original pipeline details
+
             original_pipeline = cli.explorer.project.pipelines.get(pipeline_id)
-            
-            # Create a new pipeline for the same ref/commit
             new_pipeline = cli.explorer.project.pipelines.create({
                 'ref': original_pipeline.ref,
                 'variables': []  # You can add variables if needed
@@ -641,8 +617,6 @@ class PipelineCommands(BaseCommand):
         """Handle pipeline cancel - cancel a running pipeline"""
         try:
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
-            
-            # Check if pipeline is in a cancellable state
             if pipeline.status in ["success", "failed", "canceled", "skipped"]:
                 if output_format == "json":
                     print(json.dumps({
@@ -724,19 +698,13 @@ class PipelineCommands(BaseCommand):
                 print(f"Pipeline #{pipeline_id} Graph")
                 print(f"Status: {self._get_status_icon(pipeline.status)} {pipeline.status}")
                 print(f"{'='*80}\n")
-                
-                # Display stage flow
                 stage_line = " → ".join(stage_order)
                 print(f"Stage Flow: {stage_line}\n")
                 print("-" * 80)
-                
-                # Display jobs by stage with visual tree
                 for i, stage in enumerate(stage_order):
                     stage_jobs = stages[stage]
                     print(f"\n📦 Stage: {stage}")
                     print("  " + "─" * (76 - len(stage)))
-                    
-                    # Sort jobs for better display
                     stage_jobs.sort(key=lambda x: x.name)
                     
                     for j, job in enumerate(stage_jobs):
@@ -745,15 +713,11 @@ class PipelineCommands(BaseCommand):
                         
                         status_icon = self._get_status_icon(job.status)
                         duration_str = self.format_duration(job.duration) if job.duration else "N/A"
-                        
-                        # Check if it's a parallel job
                         is_parallel = "parallel" in job.name.lower()
                         parallel_marker = " [P]" if is_parallel else ""
                         
                         print(f"{prefix} {status_icon} {job.name}{parallel_marker}")
                         print(f"  {'  ' if not is_last else '  '}  Duration: {duration_str} | ID: {job.id}")
-                        
-                        # Show dependencies if any
                         if hasattr(job, 'needs') and job.needs:
                             needs_str = ", ".join([n['name'] if isinstance(n, dict) else str(n) for n in job.needs])
                             print(f"  {'  ' if not is_last else '  '}  Needs: {needs_str}")
@@ -800,7 +764,7 @@ class PipelineCommands(BaseCommand):
             
             while True:
                 try:
-                    # Get pipeline and jobs status
+
                     pipeline = cli.explorer.project.pipelines.get(pipeline_id)
                     jobs = pipeline.jobs.list(all=True)
                     
@@ -825,8 +789,6 @@ class PipelineCommands(BaseCommand):
                             running_jobs.append(job)
                         elif job.status == "failed" and not job.allow_failure:
                             failed_jobs.append(job)
-                    
-                    # Display stages and jobs
                     for stage in stage_order:
                         print(f"\nStage: {stage}")
                         for job in stages[stage]:
@@ -835,8 +797,6 @@ class PipelineCommands(BaseCommand):
                             print(f"  {status_icon} {job.name} {duration}")
                     
                     print("\n" + "=" * 80)
-                    
-                    # Handle running jobs
                     if running_jobs:
                         current_job = running_jobs[0]  # Focus on first running job
                         print(f"\nCurrently running: {current_job.name} (#{current_job.id})")
@@ -846,14 +806,10 @@ class PipelineCommands(BaseCommand):
                             last_running_job = current_job.id
                             print("\nRecent output:")
                             print("-" * 40)
-                            
-                            # Get last few lines of the job log
                             try:
                                 trace = current_job.trace()
                                 if isinstance(trace, bytes):
                                     trace = trace.decode("utf-8", errors="replace")
-                                
-                                # Show last 10 lines
                                 lines = trace.split('\n')
                                 recent_lines = lines[-10:] if len(lines) > 10 else lines
                                 for line in recent_lines:
@@ -861,8 +817,6 @@ class PipelineCommands(BaseCommand):
                                         print(f"  {line[:100]}")  # Truncate long lines
                             except:
                                 print("  (Unable to fetch job logs)")
-                    
-                    # Check if pipeline is complete
                     if pipeline.status in completed_statuses:
                         print(f"\n{'='*80}")
                         print(f"Pipeline completed with status: {pipeline.status.upper()}")
@@ -875,8 +829,6 @@ class PipelineCommands(BaseCommand):
                         
                         print(f"\nTotal duration: {cli.explorer.format_duration(pipeline.duration)}")
                         break
-                    
-                    # Show next refresh time
                     print(f"\nRefreshing in {poll_interval} seconds... (Ctrl+C to stop)")
                     
                     # Wait before next poll
@@ -923,8 +875,6 @@ class PipelineCommands(BaseCommand):
         
         if not parallel_jobs:
             return
-        
-        # Sort by parallel number
         parallel_jobs.sort(key=lambda x: x['num'])
         
         print(f"\n{'='*80}")
@@ -934,14 +884,10 @@ class PipelineCommands(BaseCommand):
         # Find max duration for scaling
         max_duration = max(job['duration'] for job in parallel_jobs)
         max_bar_width = 50
-        
-        # Display histogram
         for job in parallel_jobs[:20]:  # Limit to first 20 for readability
             # Calculate bar width
             bar_width = int((job['duration'] / max_duration) * max_bar_width)
             bar = "█" * bar_width
-            
-            # Format job name (shorten if needed)
             if job['num'] > 0:
                 job_label = f"Test {job['num']:3d}/{job['total']}"
             else:
@@ -954,8 +900,6 @@ class PipelineCommands(BaseCommand):
         
         if len(parallel_jobs) > 20:
             print(f"\n... and {len(parallel_jobs) - 20} more parallel jobs")
-        
-        # Show statistics
         durations = [j['duration'] for j in parallel_jobs]
         avg_duration = sum(durations) / len(durations)
         min_duration = min(durations)

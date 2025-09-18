@@ -54,7 +54,6 @@ class GitLabExplorer:
     def get_mrs_for_branch(self, branch_name: str, state: str = 'opened') -> List[Dict[str, Any]]:
         """Get all merge requests for a given branch."""
         try:
-            # Search for MRs with this source branch
             mrs = self.project.mergerequests.list(
                 source_branch=branch_name,
                 state=state,
@@ -79,7 +78,6 @@ class GitLabExplorer:
                     'merge_status': mr.merge_status if hasattr(mr, 'merge_status') else None,
                 }
                 
-                # Get latest pipeline status if available
                 if hasattr(mr, 'head_pipeline') and mr.head_pipeline:
                     mr_data['pipeline_status'] = mr.head_pipeline.get('status', 'unknown')
                     mr_data['pipeline_id'] = mr.head_pipeline.get('id')
@@ -112,7 +110,6 @@ class GitLabExplorer:
                 }
                 results.append(pipeline_data)
             
-            # Sort by created_at descending (newest first)
             results.sort(key=lambda x: x['created_at'], reverse=True)
             return results
         except Exception as e:
@@ -121,7 +118,7 @@ class GitLabExplorer:
 
     def get_pipeline_details(self, pipeline_id: int, use_cache: bool = True, verbose: bool = False) -> Optional[Dict[str, Any]]:
         """Get detailed information about a pipeline."""
-        # Check cache first
+        # Cache lookup speeds up repeated requests
         if use_cache:
             if verbose:
                 import time
@@ -134,7 +131,6 @@ class GitLabExplorer:
             elif verbose:
                 print(f"✗ Pipeline {pipeline_id} not in cache ({time.time() - start:.3f}s)")
 
-        # Fetch from API
         if verbose:
             print(f"→ Fetching pipeline {pipeline_id} from GitLab API...")
         try:
@@ -146,7 +142,7 @@ class GitLabExplorer:
                 'jobs': [job.attributes for job in jobs]
             }
             
-            # Cache if complete
+            # Only cache completed pipelines to avoid stale data
             if pipeline.attributes.get('status', '').lower() in COMPLETE_STATUSES:
                 self.save_pipeline_to_cache(pipeline_id, data)
                 if verbose:
@@ -163,13 +159,12 @@ class GitLabExplorer:
         conn = sqlite3.connect(self.db_file)
         cur = conn.cursor()
         
-        # Debug: show what's in cache if verbose
+        # Cache diagnostics for troubleshooting
         if verbose:
             cur.execute("SELECT COUNT(*) FROM pipelines")
             count = cur.fetchone()[0]
             print(f"Cache contains {count} total pipelines")
             
-            # Show recent cached pipelines
             cur.execute("SELECT pipeline_id, created_at FROM pipelines ORDER BY created_at DESC LIMIT 5")
             recent = cur.fetchall()
             if recent:
@@ -225,16 +220,13 @@ class GitLabExplorer:
             'jobs_by_stage': {}
         }
         
-        # Collect stage information
         for job in jobs:
             status = job.get('status', '').lower()
             stage = job.get('stage', 'unknown')
             
-            # Count by status
             if status in summary:
                 summary[status] += 1
             
-            # Track stages
             if stage not in summary['stages']:
                 summary['stages'][stage] = {
                     'total': 0,
@@ -252,7 +244,6 @@ class GitLabExplorer:
             if status in summary['stages'][stage]:
                 summary['stages'][stage][status] += 1
             
-            # Store job details by stage
             summary['jobs_by_stage'][stage].append({
                 'id': job['id'],
                 'name': job['name'],
@@ -271,7 +262,6 @@ class GitLabExplorer:
                     'finished_at': job.get('finished_at', '')
                 })
         
-        # Calculate progress
         completed = summary['success'] + summary['failed'] + summary['canceled'] + summary['skipped']
         summary['progress'] = {
             'completed': completed,
@@ -289,7 +279,6 @@ class GitLabExplorer:
             if isinstance(trace, bytes):
                 trace = trace.decode("utf-8", errors="replace")
             
-            # Extract failure information
             result = {
                 'id': job.id,
                 'name': job.name,
@@ -316,36 +305,30 @@ class GitLabExplorer:
             'type': 'generic'  # Type of failure extraction used
         }
         
-        # Determine job type and use appropriate extraction
+        # Smart failure extraction based on job type
         job_name_lower = job_name.lower()
         
-        # Pylint jobs
         if 'pylint' in job_name_lower:
             failures['type'] = 'pylint'
             return self.extract_pylint_failures(trace, failures)
         
-        # Integration/unit test jobs (pytest)
         elif any(test_word in job_name_lower for test_word in ['test', 'pytest', 'integration', 'unit']):
             failures['type'] = 'pytest'
             return self.extract_pytest_failures(trace, failures)
         
-        # Ruff/linting jobs
         elif 'ruff' in job_name_lower or 'lint' in job_name_lower:
             failures['type'] = 'linting'
             return self.extract_linting_failures(trace, failures)
         
-        # Type checking jobs
         elif 'mypy' in job_name_lower or 'type' in job_name_lower:
             failures['type'] = 'typecheck'
             return self.extract_typecheck_failures(trace, failures)
         
-        # Default: generic extraction
         else:
             return self.extract_generic_failures(trace, failures)
     
     def extract_pytest_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
         """Extract pytest-specific failure information."""
-        # Short test summary
         summary_pattern = re.compile(
             r"(^=+\s*short test summary info\s*=+\n.*?)(?=^=+|\Z)",
             re.MULTILINE | re.DOTALL | re.IGNORECASE,
@@ -354,7 +337,6 @@ class GitLabExplorer:
         if summary_match:
             failures['short_summary'] = summary_match.group(1).strip()
         
-        # Detailed failures
         failures_pattern = re.compile(
             r"(^=+\s*FAILURES\s*=+\n.*?)(?=^[-=]+\s*Captured stderr call\s*[-=]+|\Z)",
             re.MULTILINE | re.DOTALL,
@@ -363,7 +345,6 @@ class GitLabExplorer:
         if failures_match:
             failures['detailed_failures'] = failures_match.group(1).strip()
         
-        # Captured stderr
         stderr_pattern = re.compile(
             r"(?:^-{5,}\s*Captured stderr call\s*-{5,}\n)(.*?)(?=^=+|\Z)",
             re.MULTILINE | re.DOTALL,
@@ -376,22 +357,18 @@ class GitLabExplorer:
     
     def extract_pylint_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
         """Extract pylint-specific violations."""
-        # Look for pylint violation patterns
         violations = []
         violation_pattern = re.compile(r'^\*+\s*Module\s+(.+)$', re.MULTILINE)
         
-        # Find all module sections with violations
         module_matches = violation_pattern.finditer(trace)
         
         for match in module_matches:
             module_name = match.group(1)
             module_start = match.end()
             
-            # Find the next module or end of violations
             next_module = violation_pattern.search(trace, module_start)
             module_end = next_module.start() if next_module else len(trace)
             
-            # Extract violations for this module
             module_section = trace[module_start:module_end]
             violation_lines = []
             
@@ -408,7 +385,6 @@ class GitLabExplorer:
             if len(violations) > 20:
                 failures['short_summary'] += f"\n... and {len(violations) - 20} more violations"
         
-        # Also check for the exit code message
         exit_pattern = re.compile(r'ERROR: Job failed: command terminated with exit code (\d+)')
         exit_match = exit_pattern.search(trace)
         if exit_match and not violations:
@@ -418,7 +394,6 @@ class GitLabExplorer:
     
     def extract_linting_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
         """Extract linting failures (ruff, flake8, etc)."""
-        # Look for common linting output patterns
         lint_errors = []
         
         # Ruff format: file.py:line:col: CODE message
@@ -435,7 +410,6 @@ class GitLabExplorer:
     
     def extract_typecheck_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
         """Extract type checking failures (mypy, etc)."""
-        # Look for mypy error format
         type_errors = []
         
         # Mypy format: file.py:line: error: message
@@ -452,10 +426,9 @@ class GitLabExplorer:
     
     def extract_generic_failures(self, trace: str, failures: Dict) -> Dict[str, Any]:
         """Generic failure extraction for unknown job types."""
-        # Look for the last 30 lines before "Job failed"
+        # Extract context around failure point
         lines = trace.split('\n')
         
-        # Find where the job failed
         failed_index = -1
         for i, line in enumerate(lines):
             if 'ERROR: Job failed' in line or 'Job failed' in line:
@@ -463,12 +436,10 @@ class GitLabExplorer:
                 break
         
         if failed_index > 0:
-            # Get the last 30 lines before failure
             start_index = max(0, failed_index - 30)
             context_lines = lines[start_index:failed_index + 1]
             failures['short_summary'] = "Job failed. Last 30 lines:\n" + '\n'.join(context_lines)
         else:
-            # Generic error line extraction
             error_lines = []
             for line in lines:
                 if any(keyword in line.lower() for keyword in ['error', 'failed', 'exception', 'fatal', 'abort']):
@@ -499,7 +470,6 @@ class PipelineCLI:
         """List merge requests for a branch."""
         mrs = self.explorer.get_mrs_for_branch(args.branch_name, args.state)
         
-        # Build branch URL
         project = self.explorer.project
         branch_url = f"{project.web_url}/-/tree/{args.branch_name}"
         
@@ -517,7 +487,6 @@ class PipelineCLI:
         print("-" * 120)
         
         for mr in mrs:
-            # Format MR status
             mr_state = mr['state']
             if mr_state == 'opened':
                 state_display = f"\033[92m{mr_state:<10}\033[0m"  # Green
@@ -528,7 +497,6 @@ class PipelineCLI:
             else:
                 state_display = f"{mr_state:<10}"
             
-            # Format pipeline status
             if mr['pipeline_status']:
                 p_status = mr['pipeline_status']
                 if p_status == 'success':
@@ -548,7 +516,7 @@ class PipelineCLI:
             
             print(f"!{mr['iid']:<7} {state_display} {pipeline_display:<12} {title:<50} {mr['author']:<15} {mr['target_branch']}")
         
-        # Show URLs and IDs for each MR (greppable format)
+        # Greppable output for scripting
         print("\nGreppable Output:")
         for mr in mrs:
             print(f"MR_ID: {mr['id']}")
@@ -556,7 +524,7 @@ class PipelineCLI:
             print(f"MR_URL: {mr['web_url']}")
             if mr['pipeline_id']:
                 print(f"PIPELINE_ID: {mr['pipeline_id']}")
-            print()  # Blank line between MRs
+            print()
         
         if args.latest and mrs:
             latest_mr = mrs[0]
@@ -572,7 +540,6 @@ class PipelineCLI:
         try:
             mr = self.explorer.project.mergerequests.get(args.mr_id)
             
-            # Determine status color
             if mr.state == 'opened':
                 state_display = f"\033[92m{mr.state.upper()}\033[0m"  # Green
             elif mr.state == 'merged':
@@ -702,7 +669,6 @@ class PipelineCLI:
         output_format = getattr(args, 'format', self.default_format)
         
         if output_format == 'json':
-            # JSON output for scripting
             import json
             output = {
                 'pipeline_id': args.pipeline_id,
@@ -864,14 +830,12 @@ class PipelineCLI:
             jobs.sort(key=lambda x: x.get('duration', 0) or 0, reverse=True)
         elif sort_field == 'name':
             jobs.sort(key=lambda x: x.get('name', ''))
-        else:  # Default: by created_at
+        else:
             jobs.sort(key=lambda x: x.get('created_at', ''))
         
-        # Output format (use configured default if not specified)
         output_format = getattr(args, 'format', self.default_format)
         
         if output_format == 'json':
-            # JSON output for scripting
             import json
             output = {
                 'pipeline_id': args.pipeline_id,
@@ -893,7 +857,6 @@ class PipelineCLI:
             print(json.dumps(output, indent=2))
             
         elif output_format == 'table':
-            # Pure table output (no colors, fixed width)
             print(f"{'ID':<12} {'Status':<10} {'Stage':<15} {'Name':<40} {'Duration':<10}")
             print("-" * 87)
             for job in jobs:
@@ -908,7 +871,6 @@ class PipelineCLI:
             
             for job in jobs:
                 status = job.get('status', 'unknown')
-                # Color-code status
                 if status == 'success':
                     status_display = f"\033[92m{status:<10}\033[0m"
                 elif status == 'failed':
@@ -955,10 +917,9 @@ class PipelineCLI:
                 print("\n⚠️  Captured Stderr:")
                 print(failures['stderr'])
         else:
-            # Show condensed failure information
             if failures['short_summary']:
                 print("\n📋 Test Failures:")
-                # Extract just the FAILED lines
+                # Focus on test failures
                 for line in failures['short_summary'].split('\n'):
                     if 'FAILED' in line:
                         print(f"  • {line.strip()}")
@@ -984,7 +945,7 @@ class PipelineCLI:
             
             failures = details['failures']
             if failures['short_summary']:
-                # Extract just the FAILED lines
+                # Show failure summary
                 failed_tests = []
                 for line in failures['short_summary'].split('\n'):
                     if 'FAILED' in line:
@@ -1083,7 +1044,6 @@ Examples:
             parser.print_help()
             return
         
-        # Route to appropriate command
         if args.command == 'branch':
             self.cmd_branch_mrs(args)
         elif args.command == 'mr':
@@ -1104,7 +1064,7 @@ def main():
     """Main entry point for the CLI"""
     config = Config()
     
-    # Check if this is a config command first
+    # Legacy config handling
     if len(sys.argv) > 1 and sys.argv[1] == 'config':
         parser = argparse.ArgumentParser(description='Configure GitLab CLI')
         parser.add_argument('config', help='Config command')
@@ -1132,13 +1092,11 @@ def main():
             print("Configuration saved")
         return
     
-    # Validate configuration
     valid, message = config.validate()
     if not valid:
         print(f"Error: {message}", file=sys.stderr)
         sys.exit(1)
     
-    # Run the main CLI
     cli = PipelineCLI(config)
     cli.run()
 

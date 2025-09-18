@@ -13,8 +13,6 @@ class ConfigCommand(BaseCommand):
             help="Configuration management",
             description="View and update GitLab CLI configuration",
         )
-
-        # Add subparsers for show/set
         config_subparsers = parser.add_subparsers(dest="action", help="Config action")
 
         # config show
@@ -38,7 +36,7 @@ class ConfigCommand(BaseCommand):
     def handle(self, config, args):
         """Handle configuration commands"""
         if not hasattr(args, "action") or not args.action:
-            # Default to show
+
             args.action = "show"
 
         if args.action == "show":

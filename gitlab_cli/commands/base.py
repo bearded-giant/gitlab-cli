@@ -3,8 +3,6 @@
 import sys
 import json
 from typing import List
-
-
 class BaseCommand:
     """Base class for all command handlers"""
 

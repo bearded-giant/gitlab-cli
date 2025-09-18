@@ -13,7 +13,7 @@ class CacheCommand(BaseCommand):
 
     def add_arguments(self, subparsers):
         """Add cache-specific arguments to parser"""
-        # Create the cache parser first
+
         parser = subparsers.add_parser(
             "cache",
             help="Cache management",
@@ -92,7 +92,7 @@ class CacheCommand(BaseCommand):
         cache_file = config.get_cache_path("pipelines_cache.db")
         
         if not args.cache_action:
-            # Default to showing stats
+
             args.cache_action = "stats"
         
         if args.cache_action == "stats":
@@ -113,15 +113,9 @@ class CacheCommand(BaseCommand):
         
         conn = sqlite3.connect(cache_file)
         cur = conn.cursor()
-        
-        # Get basic stats
         cur.execute("SELECT COUNT(*) FROM pipelines")
         total_pipelines = cur.fetchone()[0]
-        
-        # Get cache size
         file_size = cache_file.stat().st_size
-        
-        # Get date range
         cur.execute("SELECT MIN(created_at), MAX(created_at) FROM pipelines")
         date_range = cur.fetchone()
         
@@ -140,8 +134,6 @@ class CacheCommand(BaseCommand):
         if args.detailed and total_pipelines > 0:
             print("\nDetailed Breakdown:")
             print("-" * 40)
-            
-            # Get status breakdown
             cur.execute("""
                 SELECT 
                     json_extract(data, '$.pipeline.status') as status,
@@ -157,8 +149,6 @@ class CacheCommand(BaseCommand):
                 for status, count in status_breakdown:
                     status_str = status or "unknown"
                     print(f"  {status_str:15} {count:5} pipelines")
-            
-            # Get size per pipeline
             cur.execute("""
                 SELECT 
                     pipeline_id,
@@ -255,8 +245,6 @@ class CacheCommand(BaseCommand):
         
         conn = sqlite3.connect(cache_file)
         cur = conn.cursor()
-        
-        # Build query based on sort order
         if args.sort == "id":
             order_by = "pipeline_id DESC"
         elif args.sort == "size":
@@ -296,8 +284,6 @@ class CacheCommand(BaseCommand):
             size_display = self._format_size(size)
             
             print(f"{pid:<12} {status_display:<10} {ref_display:<20} {created_display:<20} {size_display:<10}")
-        
-        # Show total count if more than limit
         cur.execute("SELECT COUNT(*) FROM pipelines")
         total = cur.fetchone()[0]
         if total > args.limit:
@@ -317,8 +303,6 @@ class CacheCommand(BaseCommand):
         if cache_file.exists():
             size = cache_file.stat().st_size
             print(f"Database size:     {self._format_size(size)}")
-            
-            # Check if accessible
             try:
                 conn = sqlite3.connect(cache_file)
                 cur = conn.cursor()

@@ -14,8 +14,6 @@ class SearchCommand(BaseCommand):
         """Parse relative time strings like '2d', '3h', '1w' into datetime"""
         if not time_str:
             return None
-            
-        # Handle different formats
         time_str = time_str.lower().strip()
         
         # Relative time formats
@@ -65,7 +63,7 @@ class SearchCommand(BaseCommand):
     def list_pipelines(self, cli, args, output_format):
         """List pipelines with filtering"""
         try:
-            # Build query parameters
+
             params = {}
             
             # Status filter
@@ -91,8 +89,6 @@ class SearchCommand(BaseCommand):
                 params['source'] = 'push'
             elif hasattr(args, 'source') and args.source:
                 params['source'] = args.source
-            
-            # Get pipelines - get extra to account for bot filtering
             per_page = getattr(args, 'limit', 20)
             pipelines = cli.explorer.project.pipelines.list(
                 per_page=per_page * 2,  # Get extra to account for filtering
@@ -101,8 +97,6 @@ class SearchCommand(BaseCommand):
                 sort='desc',
                 **params
             )
-            
-            # Filter out GitLab Security Policy Bot pipelines
             filtered_pipelines = []
             for p in pipelines:
                 # Skip pipelines created by GitLab Security Policy Bot
@@ -118,8 +112,6 @@ class SearchCommand(BaseCommand):
                     break
             
             pipelines = filtered_pipelines
-            
-            # Apply time filter if specified
             if hasattr(args, 'since') and args.since:
                 try:
                     since_date = self.parse_time_filter(args.since)
@@ -141,8 +133,6 @@ class SearchCommand(BaseCommand):
                 except ValueError as e:
                     print(f"Error: {e}")
                     return
-            
-            # Display results
             if not pipelines:
                 filters = []
                 if 'status' in params:
@@ -194,8 +184,6 @@ class SearchCommand(BaseCommand):
                     created = p.created_at[:19].replace('T', ' ')
                     
                     print(f"{p.id:<10} {p.status:<10} {p.source:<10} {ref_display:<25} {user_display:<15} {created:<20}")
-                
-                # Show greppable IDs
                 print("\nPIPELINE_IDS: " + ",".join(str(p.id) for p in pipelines))
             else:
                 # Friendly format
@@ -211,8 +199,6 @@ class SearchCommand(BaseCommand):
                         "canceled": "🚫",
                         "skipped": "⏭"
                     }.get(p.status, "❓")
-                    
-                    # Format user info
                     user_str = ""
                     if hasattr(p, 'user') and p.user:
                         username = p.user.get('username', 'unknown')
@@ -238,7 +224,7 @@ class SearchCommand(BaseCommand):
     def search_mrs(self, cli, args, output_format):
         """Search MRs with multiple filters"""
         try:
-            # Build query parameters
+
             params = {}
             
             # State filter (opened, closed, merged, all)
@@ -278,8 +264,6 @@ class SearchCommand(BaseCommand):
             # WIP/Draft filter
             if hasattr(args, 'wip') and args.wip:
                 params['wip'] = 'yes' if args.wip else 'no'
-            
-            # Get MRs
             per_page = getattr(args, 'limit', 20)
             mrs = cli.explorer.project.mergerequests.list(
                 per_page=per_page,
@@ -288,8 +272,6 @@ class SearchCommand(BaseCommand):
                 sort='desc',
                 **params
             )
-            
-            # Apply time filters
             if hasattr(args, 'created_after') and args.created_after:
                 try:
                     after_date = self.parse_time_filter(args.created_after)
@@ -322,8 +304,6 @@ class SearchCommand(BaseCommand):
                 except ValueError as e:
                     print(f"Error: {e}")
                     return
-            
-            # Display results
             if not mrs:
                 print("No merge requests found matching filters")
                 return
@@ -359,8 +339,6 @@ class SearchCommand(BaseCommand):
                     branches = f"{mr.source_branch[:13]} → {mr.target_branch[:13]}"
                     
                     print(f"!{mr.iid:<7} {mr.state:<10} {mr.author['username']:<15} {title_display:<40} {branches:<30}")
-                
-                # Show greppable IDs
                 print("\nMR_IIDS: " + ",".join(str(mr.iid) for mr in mrs))
             else:
                 # Friendly format

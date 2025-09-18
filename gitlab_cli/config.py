@@ -31,7 +31,6 @@ class Config:
             'diff_view': 'unified',  # Default diff view: unified, inline, or split
         }
         
-        # Load from config file if it exists
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r') as f:
@@ -160,7 +159,6 @@ class Config:
                     gitlab_domain = urllib.parse.urlparse(self.gitlab_url).netloc
                     
                     if gitlab_domain not in remote_url:
-                        # Extract domain from remote for better error message
                         if 'github.com' in remote_url:
                             return False, f"This is a GitHub repository. GitLab CLI is configured for {gitlab_domain}.\nMove to a GitLab repository or set GITLAB_PROJECT explicitly."
                         else:

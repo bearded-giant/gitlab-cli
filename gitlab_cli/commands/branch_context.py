@@ -119,8 +119,6 @@ class BranchCommand(BaseCommand):
             "age": None,
             "author": None
         }
-        
-        # Check if branch exists locally
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--verify", branch_name],
@@ -130,8 +128,6 @@ class BranchCommand(BaseCommand):
             info["exists_locally"] = result.returncode == 0
         except:
             pass
-        
-        # Get last commit info
         try:
             result = subprocess.run(
                 ["git", "log", "-1", "--format=%H|%s|%an|%ae|%ar", branch_name],
@@ -153,8 +149,6 @@ class BranchCommand(BaseCommand):
                     info["author"] = parts[2]
         except:
             pass
-        
-        # Check ahead/behind from main/master
         try:
             # Try to find the main branch
             for main_branch in ["main", "master"]:
@@ -164,7 +158,7 @@ class BranchCommand(BaseCommand):
                     text=True
                 )
                 if result.returncode == 0:
-                    # Get ahead/behind counts
+
                     result = subprocess.run(
                         ["git", "rev-list", "--left-right", "--count", f"origin/{main_branch}...{branch_name}"],
                         capture_output=True,
@@ -180,8 +174,6 @@ class BranchCommand(BaseCommand):
                     break
         except:
             pass
-        
-        # Get branch protection status and other GitLab info
         try:
             branches = cli.explorer.project.branches.list(search=branch_name)
             for branch in branches:
@@ -200,12 +192,10 @@ class BranchCommand(BaseCommand):
     
     def handle(self, cli, args, output_format):
         """Handle branch commands"""
-        # Parse arguments intelligently
+
         # First arg could be branch name or resource type
         branch_name = None
         resource = None
-        
-        # Check if first arg is a resource keyword
         resource_keywords = ["mr", "mrs", "merge-request", "merge-requests", 
                             "pipeline", "pipelines", "commit", "commits", "info"]
         
@@ -234,18 +224,12 @@ class BranchCommand(BaseCommand):
             if not branch_name:
                 print("Error: Not in a git repository or cannot determine branch")
                 return
-        
-        # Handle --create-mr flag first
         if args.create_mr:
             self.create_mr_for_branch(cli, branch_name, args, output_format)
             return
-        
-        # Handle --open flag to open branch in browser
         if args.open:
             self.open_branch_in_browser(cli, branch_name)
             return
-
-        # Handle --open-mr flag to open MR in browser
         if args.open_mr:
             self.open_mr_in_browser(cli, branch_name)
             return
@@ -267,8 +251,6 @@ class BranchCommand(BaseCommand):
     def show_branch_info(self, cli, branch_name, output_format):
         """Show branch information"""
         info = self.get_branch_info(cli, branch_name)
-        
-        # Get counts of related resources
         try:
             mrs = cli.explorer.get_mrs_for_branch(branch_name, "all")
             mr_counts = {
@@ -277,8 +259,6 @@ class BranchCommand(BaseCommand):
                 "merged": len([m for m in mrs if m['state'] == 'merged']),
                 "closed": len([m for m in mrs if m['state'] == 'closed'])
             }
-            
-            # Get recent pipelines
             pipelines = cli.explorer.project.pipelines.list(
                 ref=branch_name,
                 per_page=5
@@ -375,10 +355,8 @@ class BranchCommand(BaseCommand):
                 print(f"No {args.state} merge requests found for branch '{branch_name}'")
             import sys
             sys.exit(1)  # Exit with error code for scripting
-        
-        # Handle --latest flag
         if args.latest:
-            # Sort by created_at to get the most recent
+
             mrs = sorted(mrs, key=lambda x: x['created_at'], reverse=True)[:1]
         else:
             # Limit results normally
@@ -404,21 +382,17 @@ class BranchCommand(BaseCommand):
     def show_branch_pipelines(self, cli, branch_name, args, output_format):
         """Show recent pipelines for a branch"""
         try:
-            # Build query parameters
+
             list_params = {
                 'ref': branch_name,
                 'order_by': 'id',
                 'sort': 'desc',
                 'per_page': args.limit * 2  # Get extra to account for filtering
             }
-            
-            # Add source filter if specified
             if args.push:
                 list_params['source'] = 'push'
             elif hasattr(args, 'source') and args.source:
                 list_params['source'] = args.source
-            
-            # Add status filter if specified
             status_filter = None
             if hasattr(args, 'passed') and args.passed:
                 status_filter = 'success'
@@ -431,8 +405,6 @@ class BranchCommand(BaseCommand):
                 list_params['status'] = status_filter
             
             pipelines = cli.explorer.project.pipelines.list(**list_params, get_all=False)
-            
-            # Filter out GitLab Security Policy Bot pipelines
             filtered_pipelines = []
             for p in pipelines:
                 # Skip pipelines created by GitLab Security Policy Bot
@@ -493,8 +465,6 @@ class BranchCommand(BaseCommand):
                         "pending": "[PENDING]",
                         "canceled": "[CANCELED]"
                     }.get(p.status, "[UNKNOWN]")
-                    
-                    # Format user info
                     user_str = ""
                     if hasattr(p, 'user') and p.user:
                         username = p.user.get('username', 'unknown')
@@ -519,7 +489,7 @@ class BranchCommand(BaseCommand):
     def show_branch_commits(self, cli, branch_name, args, output_format):
         """Show recent commits on branch"""
         try:
-            # Get commits from git log
+
             result = subprocess.run(
                 ["git", "log", f"--max-count={args.limit}", 
                  "--format=%H|%s|%an|%ae|%ar", branch_name],
@@ -561,24 +531,18 @@ class BranchCommand(BaseCommand):
         """Generate URL to create a new MR for the branch"""
         import urllib.parse
         import webbrowser
-        
-        # Get the GitLab URL and project path
         gitlab_url = cli.config.gitlab_url
         project_path = cli.config.project_path
         
         if not gitlab_url or not project_path:
             print("Error: GitLab URL or project path not configured")
             return
-        
-        # Build the MR creation URL with source branch pre-filled
         # URL format: https://gitlab.example.com/group/project/-/merge_requests/new?merge_request[source_branch]=branch-name
         base_url = f"{gitlab_url}/{project_path}/-/merge_requests/new"
         params = {
             "merge_request[source_branch]": branch_name
         }
         # Don't set target branch - let GitLab use the repo's default
-        
-        # Build the full URL with query parameters
         query_string = urllib.parse.urlencode(params)
         full_url = f"{base_url}?{query_string}"
         
@@ -602,7 +566,7 @@ class BranchCommand(BaseCommand):
     def open_branch_in_browser(self, cli, branch_name):
         """Open the branch in web browser"""
         try:
-            # Get project web URL
+
             project = cli.explorer.project
             project_url = project.web_url
 
@@ -629,7 +593,7 @@ class BranchCommand(BaseCommand):
     def open_mr_in_browser(self, cli, branch_name):
         """Open the MR for the branch in web browser"""
         try:
-            # Get open MRs for this branch
+
             mrs = cli.explorer.get_mrs_for_branch(branch_name, "opened")
 
             if not mrs:

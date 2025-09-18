@@ -6,6 +6,8 @@ import webbrowser
 from .base import BaseCommand
 
 
+
+
 class BranchesCommand(BaseCommand):
     """Handle branch-related commands"""
 
@@ -32,7 +34,6 @@ class BranchesCommand(BaseCommand):
 
     def handle(self, cli, args, output_format):
         """Handle branch commands"""
-        # Get current branch if not specified
         if not args.branch_name:
             result = subprocess.run(
                 ["git", "branch", "--show-current"], capture_output=True, text=True
@@ -42,16 +43,13 @@ class BranchesCommand(BaseCommand):
             else:
                 self.output_error("Not in a git repository or cannot determine branch")
 
-        # Handle --open flag
         if args.open:
-            # Get MRs for the branch
             mrs = cli.explorer.get_mrs_for_branch(args.branch_name, args.state)
 
             if not mrs:
                 print(f"No {args.state} MRs found for branch '{args.branch_name}'")
                 return
 
-            # Open the latest or first MR
             mr_to_open = mrs[0] if args.latest or len(mrs) == 1 else mrs[0]
             mr_url = mr_to_open['web_url']
 
@@ -66,6 +64,5 @@ class BranchesCommand(BaseCommand):
                 print(f"You can manually open: {mr_url}")
             return
 
-        # Use existing command for listing MRs
         args.format = output_format
         cli.cmd_branch_mrs(args)

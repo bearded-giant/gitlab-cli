@@ -64,8 +64,6 @@ class JobCommands(BaseCommand):
         """Handle job detail subcommand - show comprehensive job information"""
         try:
             job = cli.explorer.project.jobs.get(job_id)
-            
-            # Get job dependencies
             dependencies = self._get_job_dependencies(cli, job)
 
             if output_format == "json":
@@ -122,8 +120,6 @@ class JobCommands(BaseCommand):
             while True:
                 # Refresh job status
                 job = cli.explorer.project.jobs.get(job_id)
-                
-                # Get current trace
                 try:
                     trace = job.trace()
                     if isinstance(trace, bytes):
@@ -135,8 +131,6 @@ class JobCommands(BaseCommand):
                         continue
                     else:
                         raise e
-                
-                # Check if there's new content
                 current_size = len(trace)
                 if current_size > last_size:
                     # Print only the new content
@@ -144,13 +138,9 @@ class JobCommands(BaseCommand):
                     sys.stdout.write(new_content)
                     sys.stdout.flush()
                     last_size = current_size
-                
-                # Check if job is complete
                 if job.status in completed_statuses:
                     print(f"\n{'='*60}")
                     print(f"Job completed with status: {job.status}")
-                    
-                    # Show failure extraction for failed jobs
                     if job.status == "failed" and getattr(args, "failures", False):
                         failures = cli.explorer.extract_failures_from_trace(trace, job.name)
                         if failures.get("summary") or failures.get("details"):
@@ -269,7 +259,7 @@ class JobCommands(BaseCommand):
 
     def _display_job_summary(self, cli, job, job_id, args, total_jobs):
         """Display friendly job summary"""
-        # Check if job is allowed to fail and has failed
+
         is_allowed_failure = (
             getattr(job, "allow_failure", False) and job.status == "failed"
         )
@@ -343,8 +333,6 @@ class JobCommands(BaseCommand):
             "artifacts": getattr(job, "artifacts", None),
             "artifacts_expire_at": getattr(job, "artifacts_expire_at", None),
         }
-
-        # Add runner info if available
         runner_info = getattr(job, "runner", None)
         if runner_info:
             if callable(runner_info):
@@ -360,8 +348,6 @@ class JobCommands(BaseCommand):
                 output["runner"] = None
         else:
             output["runner"] = None
-
-        # Add pipeline info if available
         pipeline_info = getattr(job, "pipeline", None)
         if pipeline_info and isinstance(pipeline_info, dict):
             output["pipeline"] = {
@@ -372,8 +358,6 @@ class JobCommands(BaseCommand):
             }
         else:
             output["pipeline"] = None
-
-        # Add user info if available
         user_info = getattr(job, "user", None)
         if user_info and isinstance(user_info, dict):
             output["user"] = {
@@ -382,8 +366,6 @@ class JobCommands(BaseCommand):
             }
         else:
             output["user"] = None
-
-        # Add failure details if failed
         if job.status == "failed":
             details = cli.explorer.get_failed_job_details(job_id)
             output["failure_reason"] = (
@@ -401,7 +383,7 @@ class JobCommands(BaseCommand):
         }
         
         try:
-            # Get jobs this job depends on (needs)
+
             if hasattr(job, 'needs') and job.needs:
                 for need in job.needs:
                     if isinstance(need, dict):
@@ -414,8 +396,6 @@ class JobCommands(BaseCommand):
                             "name": str(need),
                             "artifacts": True
                         })
-            
-            # Get jobs that depend on this job
             # We need to check all jobs in the pipeline
             if hasattr(job, 'pipeline') and job.pipeline:
                 pipeline_id = job.pipeline.get('id') if isinstance(job.pipeline, dict) else job.pipeline.id
@@ -441,7 +421,7 @@ class JobCommands(BaseCommand):
     
     def _display_job_detail_friendly(self, cli, job, job_id, dependencies=None):
         """Display friendly detailed job information"""
-        # Check if job is allowed to fail and has failed
+
         is_allowed_failure = job.allow_failure and job.status == "failed"
 
         if is_allowed_failure:
@@ -484,15 +464,11 @@ class JobCommands(BaseCommand):
         
         print(f"\nJOB_URL: {job.web_url}")
         print(f"JOB_ID: {job.id}")
-
-        # Show pipeline info if available
         pipeline_info = getattr(job, "pipeline", None)
         if pipeline_info and isinstance(pipeline_info, dict):
             print(f"\nPipeline: #{pipeline_info.get('id')} ({pipeline_info.get('status')})")
             print(f"Pipeline Ref: {pipeline_info.get('ref')}")
             print(f"Pipeline SHA: {pipeline_info.get('sha', '')[:8]}...")
-
-        # Show runner info if available
         runner_info = getattr(job, "runner", None)
         if runner_info:
             if callable(runner_info):
@@ -501,26 +477,18 @@ class JobCommands(BaseCommand):
                 print(f"\nRunner: #{runner_info.get('id')} - {runner_info.get('description', 'N/A')}")
                 print(f"Active: {runner_info.get('active', 'Unknown')}")
                 print(f"Shared: {runner_info.get('is_shared', 'Unknown')}")
-
-        # Show user info if available
         user_info = getattr(job, "user", None)
         if user_info and isinstance(user_info, dict):
             print(f"\nUser: {user_info.get('username')} ({user_info.get('name')})")
-
-        # Show artifacts info if available
         artifacts = getattr(job, "artifacts", None)
         if artifacts:
             print(f"\nArtifacts: Available")
             artifacts_expire_at = getattr(job, "artifacts_expire_at", None)
             if artifacts_expire_at:
                 print(f"Artifacts Expire: {artifacts_expire_at}")
-
-        # Show coverage if available
         coverage = getattr(job, "coverage", None)
         if coverage:
             print(f"Coverage: {coverage}%")
-
-        # Show failure details if failed
         if job.status == "failed":
             print(f"\n{'='*60}")
             print("FAILURE DETAILS")
@@ -529,8 +497,6 @@ class JobCommands(BaseCommand):
             failure_reason = getattr(job, "failure_reason", None)
             if failure_reason:
                 print(f"Failure Reason: {failure_reason}")
-            
-            # Get detailed failure analysis
             details = cli.explorer.get_failed_job_details(job_id)
             failures = details.get("failures", {})
             
@@ -544,23 +510,17 @@ class JobCommands(BaseCommand):
             
             if failures.get("failed_tests"):
                 print(f"\nFailed Tests: {failures['failed_tests']}")
-        
-        # Show job dependencies
         if dependencies:
             has_deps = bool(dependencies.get("needs") or dependencies.get("needed_by"))
             if has_deps:
                 print(f"\n{'='*60}")
                 print("JOB DEPENDENCIES")
                 print(f"{'='*60}")
-                
-                # Show upstream dependencies (jobs this job needs)
                 if dependencies.get("needs"):
                     print("\n🔼 This job depends on (needs):")
                     for need in dependencies["needs"]:
                         artifacts_str = " (with artifacts)" if need.get("artifacts") else " (no artifacts)"
                         print(f"  • {need['name']}{artifacts_str}")
-                
-                # Show downstream dependencies (jobs that need this job)
                 if dependencies.get("needed_by"):
                     print("\n🔽 Jobs that depend on this job:")
                     for dependent in dependencies["needed_by"]:

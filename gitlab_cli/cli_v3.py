@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""GitLab CLI v3 - Refactored with modular command handlers"""
 
 import sys
 import argparse
-from typing import List
 
 from .config import Config
 from .cli import PipelineCLI
@@ -21,16 +19,14 @@ from .commands.mr_context import MRContextCommand
 
 
 class GitLabCLIv3:
-    """Main CLI class with modular command architecture"""
-
     def __init__(self):
         self.config = Config()
         self.branches_cmd = BranchesCommand()
-        self.branch_cmd = BranchCommand()  # New contextual branch command
+        self.branch_cmd = BranchCommand()
         self.pipelines_cmd = PipelineCommands()
         self.jobs_cmd = JobCommands()
         self.mrs_cmd = MRsCommand()
-        self.mr_context_cmd = MRContextCommand()  # New contextual MR command
+        self.mr_context_cmd = MRContextCommand()
         self.config_cmd = ConfigCommand()
         self.cache_cmd = CacheCommand()
         self.search_cmd = SearchCommand()
@@ -50,7 +46,6 @@ class GitLabCLIv3:
             help="Enable verbose output (shows caching, timing, etc.)",
         )
 
-        # Create subparsers for each area
         subparsers = parser.add_subparsers(
             dest="area",
             title="Available areas",
@@ -58,7 +53,6 @@ class GitLabCLIv3:
             metavar="<area>",
         )
 
-        # Add command parsers
         self._add_branch_parser(subparsers)
         self._add_mr_parser(subparsers)
         self._add_pipeline_parser(subparsers)
@@ -79,15 +73,13 @@ class GitLabCLIv3:
 
     def _add_mr_parser(self, subparsers):
         """Add MR command parser"""
-        # Add 'mr' parser
         parser = subparsers.add_parser(
             "mr",
             aliases=["merge-request"],
             help="Merge request operations",
             description="Show merge request information and related resources",
         )
-        
-        # Add primary arguments for contextual command
+
         parser.add_argument(
             "mr_id",
             nargs="?",
@@ -96,104 +88,79 @@ class GitLabCLIv3:
         parser.add_argument(
             "resource",
             nargs="?",
-            choices=["diff", "pipeline", "commit", "discussion", "approve", "info", "search", "detail"],
+            choices=[
+                "diff",
+                "pipeline",
+                "commit",
+                "discussion",
+                "approve",
+                "info",
+                "search",
+                "detail",
+            ],
             help="Resource to show for MR (diff, pipeline, commit, discussion, approve, info)",
         )
-        
-        # Diff-specific options
+
         parser.add_argument(
             "--view",
             choices=["inline", "split", "unified"],
-            help="Diff view mode (inline, split, unified)"
+            help="Diff view mode (inline, split, unified)",
         )
         parser.add_argument(
             "--context",
             type=int,
             default=3,
-            help="Number of context lines for diff (default: 3)"
+            help="Number of context lines for diff (default: 3)",
+        )
+        parser.add_argument("--file", help="Show diff for specific file only")
+        parser.add_argument(
+            "--no-color", action="store_true", help="Disable color output for diffs"
         )
         parser.add_argument(
-            "--file",
-            help="Show diff for specific file only"
+            "--stats", action="store_true", help="Show diff statistics only"
         )
         parser.add_argument(
-            "--no-color",
-            action="store_true",
-            help="Disable color output for diffs"
+            "--name-only", action="store_true", help="Show only file names that changed"
         )
-        parser.add_argument(
-            "--stats",
-            action="store_true",
-            help="Show diff statistics only"
-        )
-        parser.add_argument(
-            "--name-only",
-            action="store_true",
-            help="Show only file names that changed"
-        )
-        
-        # Search filters
-        parser.add_argument(
-            "--author",
-            help="Filter by author username"
-        )
-        parser.add_argument(
-            "--assignee",
-            help="Filter by assignee username"
-        )
-        parser.add_argument(
-            "--reviewer",
-            help="Filter by reviewer username"
-        )
+
+        parser.add_argument("--author", help="Filter by author username")
+        parser.add_argument("--assignee", help="Filter by assignee username")
+        parser.add_argument("--reviewer", help="Filter by reviewer username")
         parser.add_argument(
             "--state",
             choices=["opened", "closed", "merged", "all"],
             default="opened",
-            help="Filter by MR state (default: opened)"
+            help="Filter by MR state (default: opened)",
+        )
+        parser.add_argument("--labels", help="Filter by labels (comma-separated)")
+        parser.add_argument("--search", help="Search in title and description")
+        parser.add_argument(
+            "--target-branch", dest="target_branch", help="Filter by target branch"
         )
         parser.add_argument(
-            "--labels",
-            help="Filter by labels (comma-separated)"
+            "--source-branch", dest="source_branch", help="Filter by source branch"
         )
         parser.add_argument(
-            "--search",
-            help="Search in title and description"
-        )
-        parser.add_argument(
-            "--target-branch",
-            dest="target_branch",
-            help="Filter by target branch"
-        )
-        parser.add_argument(
-            "--source-branch",
-            dest="source_branch",
-            help="Filter by source branch"
-        )
-        parser.add_argument(
-            "--wip",
-            action="store_true",
-            help="Show only WIP/Draft MRs"
+            "--wip", action="store_true", help="Show only WIP/Draft MRs"
         )
         parser.add_argument(
             "--created-after",
             dest="created_after",
-            help="Show MRs created after (e.g., '2d', '3h', '1w', '2 days ago')"
+            help="Show MRs created after (e.g., '2d', '3h', '1w', '2 days ago')",
         )
         parser.add_argument(
             "--updated-after",
             dest="updated_after",
-            help="Show MRs updated after (e.g., '2d', '3h', '1w', '2 days ago')"
+            help="Show MRs updated after (e.g., '2d', '3h', '1w', '2 days ago')",
         )
         parser.add_argument(
             "--limit",
             type=int,
             default=20,
-            help="Maximum number of items to show (default: 20)"
+            help="Maximum number of items to show (default: 20)",
         )
         parser.add_argument(
-            "--format",
-            choices=["friendly", "table", "json"],
-            help="Output format"
+            "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
     def _add_pipeline_parser(self, subparsers):
@@ -215,72 +182,95 @@ class GitLabCLIv3:
             help='Pipeline ID (when using "detail", "graph", "retry", "rerun", or "cancel")',
         )
 
-        # Status filters
         status_group = parser.add_mutually_exclusive_group()
-        status_group.add_argument("--failed", action="store_true", help="Show failed jobs")
-        status_group.add_argument("--running", action="store_true", help="Show running jobs")
-        status_group.add_argument("--success", action="store_true", help="Show successful jobs")
-        status_group.add_argument("--skipped", action="store_true", help="Show skipped jobs")
+        status_group.add_argument(
+            "--failed", action="store_true", help="Show failed jobs"
+        )
+        status_group.add_argument(
+            "--running", action="store_true", help="Show running jobs"
+        )
+        status_group.add_argument(
+            "--success", action="store_true", help="Show successful jobs"
+        )
+        status_group.add_argument(
+            "--skipped", action="store_true", help="Show skipped jobs"
+        )
 
-        parser.add_argument("--jobs", action="store_true", help="List all jobs (instead of summary)")
+        parser.add_argument(
+            "--jobs", action="store_true", help="List all jobs (instead of summary)"
+        )
         parser.add_argument("--stage", help="Filter by stage name")
         parser.add_argument(
-            "--job-search",
-            help="Search for jobs by name pattern (case-insensitive)"
+            "--job-search", help="Search for jobs by name pattern (case-insensitive)"
         )
         parser.add_argument(
-            "--show-variables", 
-            action="store_true", 
-            help="Show pipeline variables (for detail command)"
+            "--show-variables",
+            action="store_true",
+            help="Show pipeline variables (for detail command)",
         )
         parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
-        parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
-        
-        # Add filters that apply to pipeline list action
-        # Note: These are for filtering pipelines, not jobs within a pipeline
+        parser.add_argument(
+            "--verbose", "-v", action="store_true", help="Enable verbose output"
+        )
+
         parser.add_argument(
             "--since",
-            help="(list) Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
+            help="(list) Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')",
         )
         parser.add_argument(
-            "--before", 
-            help="(list) Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
+            "--before",
+            help="(list) Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')",
         )
         parser.add_argument(
-            "--user",
-            help="(list) Filter by username who triggered the pipeline"
+            "--user", help="(list) Filter by username who triggered the pipeline"
         )
-        parser.add_argument(
-            "--ref",
-            help="(list) Filter by ref/branch name"
-        )
+        parser.add_argument("--ref", help="(list) Filter by ref/branch name")
         parser.add_argument(
             "--source",
-            choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
-            help="(list) Filter by pipeline source"
+            choices=[
+                "push",
+                "web",
+                "trigger",
+                "schedule",
+                "api",
+                "external",
+                "pipeline",
+                "chat",
+                "merge_request_event",
+            ],
+            help="(list) Filter by pipeline source",
         )
         parser.add_argument(
             "--push",
             action="store_true",
-            help="(list) Show only push pipelines (shortcut for --source push)"
+            help="(list) Show only push pipelines (shortcut for --source push)",
         )
         parser.add_argument(
             "--status",
-            choices=["success", "failed", "running", "pending", "canceled", "skipped", "manual", "created"],
-            help="(list) Filter by pipeline status"
+            choices=[
+                "success",
+                "failed",
+                "running",
+                "pending",
+                "canceled",
+                "skipped",
+                "manual",
+                "created",
+            ],
+            help="(list) Filter by pipeline status",
         )
         parser.add_argument(
             "--limit",
             type=int,
             default=20,
-            help="Maximum number of results to show (default: 20)"
+            help="Maximum number of results to show (default: 20)",
         )
         parser.add_argument(
             "--follow",
             action="store_true",
-            help="Follow pipeline progress, auto-tail running jobs"
+            help="Follow pipeline progress, auto-tail running jobs",
         )
 
     def _add_job_parser(self, subparsers):
@@ -363,57 +353,51 @@ class GitLabCLIv3:
 
     def route_command(self, args):
         """Route commands to appropriate handlers"""
-        # Handle config and cache separately (don't need API connection)
         if args.area == "config":
             self.config_cmd.handle(self.config, args)
             return
-        
+
         if args.area == "cache":
             self.cache_cmd.handle(self.config, args)
             return
 
-        # Check if user is asking for help on any command
         if args.area in ["pipeline", "job", "mr", "merge-request", "branch"]:
-            if (hasattr(args, 'action') and args.action == "help") or \
-               (hasattr(args, 'mr_id') and args.mr_id == "help") or \
-               (hasattr(args, 'branch_name') and args.branch_name == "help"):
-                # Show help without requiring config
+            if (
+                (hasattr(args, "action") and args.action == "help")
+                or (hasattr(args, "mr_id") and args.mr_id == "help")
+                or (hasattr(args, "branch_name") and args.branch_name == "help")
+            ):
                 parser = self.create_parser()
-                parser.parse_args([args.area, '--help'])
+                parser.parse_args([args.area, "--help"])
                 return
 
-        # Validate configuration for other commands
         valid, message = self.config.validate()
         if not valid:
             print(f"Error: {message}", file=sys.stderr)
             sys.exit(1)
 
-        # Initialize CLI with config
         verbose = getattr(args, "verbose", False)
         cli = PipelineCLI(self.config, verbose=verbose)
 
-        # Get output format
         output_format = getattr(args, "format", None) or self.config.default_format
 
-        # Route based on area
         if args.area == "branch":
-            # Use new contextual branch command
             self.branch_cmd.handle(cli, args, output_format)
 
         elif args.area in ["mr", "merge-request"]:
-            # Handle MR contextual commands
             if not args.mr_id and not args.resource:
                 print("Error: Please provide MR ID or use 'gl mr --help' for help")
                 sys.exit(1)
             elif args.mr_id == "help":
-                # Handle 'gl mr help' same as 'gl mr --help'
                 parser = self.create_parser()
-                parser.parse_args([args.area, '--help'])
-            elif args.resource == "search" or (args.mr_id == "search" and not args.resource):
-                # Search MRs with filters
+                parser.parse_args([args.area, "--help"])
+            elif args.resource == "search" or (
+                args.mr_id == "search" and not args.resource
+            ):
                 self.search_cmd.search_mrs(cli, args, output_format)
-            elif args.resource == "detail" or (args.mr_id and args.resource == "detail"):
-                # Legacy detail command support
+            elif args.resource == "detail" or (
+                args.mr_id and args.resource == "detail"
+            ):
                 mr_id = args.mr_id if args.resource == "detail" else args.resource
                 if mr_id and mr_id != "detail":
                     try:
@@ -426,14 +410,11 @@ class GitLabCLIv3:
                     print("Error: 'detail' requires an MR ID")
                     sys.exit(1)
             elif args.mr_id:
-                # Use new contextual MR command
                 try:
-                    # Validate MR ID is numeric
                     int(args.mr_id)
                     self.mr_context_cmd.handle(cli, args, output_format)
                 except ValueError:
-                    # Check if it's a legacy multi-ID format
-                    if ',' in args.mr_id or args.mr_id.isdigit():
+                    if "," in args.mr_id or args.mr_id.isdigit():
                         self.mrs_cmd.handle(cli, args, output_format, action=args.mr_id)
                     else:
                         print(f"Error: Invalid MR ID: {args.mr_id}")
@@ -444,20 +425,22 @@ class GitLabCLIv3:
 
         elif args.area == "pipeline":
             if not args.action:
-                print("Error: Please provide pipeline ID(s) or use 'gl pipeline --help' for help")
+                print(
+                    "Error: Please provide pipeline ID(s) or use 'gl pipeline --help' for help"
+                )
                 sys.exit(1)
             elif args.action == "help":
-                # Handle 'gl pipeline help' same as 'gl pipeline --help'
                 parser = self.create_parser()
-                parser.parse_args([args.area, '--help'])
+                parser.parse_args([args.area, "--help"])
             elif args.action == "list":
-                # List pipelines with filters
                 self.search_cmd.list_pipelines(cli, args, output_format)
             elif args.action == "detail":
                 if args.pipeline_id:
                     try:
                         pipeline_id = int(args.pipeline_id)
-                        self.pipelines_cmd.handle_pipeline_detail(cli, pipeline_id, args, output_format)
+                        self.pipelines_cmd.handle_pipeline_detail(
+                            cli, pipeline_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
@@ -468,7 +451,9 @@ class GitLabCLIv3:
                 if args.pipeline_id:
                     try:
                         pipeline_id = int(args.pipeline_id)
-                        self.pipelines_cmd.handle_pipeline_graph(cli, pipeline_id, args, output_format)
+                        self.pipelines_cmd.handle_pipeline_graph(
+                            cli, pipeline_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
@@ -479,7 +464,9 @@ class GitLabCLIv3:
                 if args.pipeline_id:
                     try:
                         pipeline_id = int(args.pipeline_id)
-                        self.pipelines_cmd.handle_pipeline_retry(cli, pipeline_id, args, output_format)
+                        self.pipelines_cmd.handle_pipeline_retry(
+                            cli, pipeline_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
@@ -490,7 +477,9 @@ class GitLabCLIv3:
                 if args.pipeline_id:
                     try:
                         pipeline_id = int(args.pipeline_id)
-                        self.pipelines_cmd.handle_pipeline_rerun(cli, pipeline_id, args, output_format)
+                        self.pipelines_cmd.handle_pipeline_rerun(
+                            cli, pipeline_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
@@ -501,7 +490,9 @@ class GitLabCLIv3:
                 if args.pipeline_id:
                     try:
                         pipeline_id = int(args.pipeline_id)
-                        self.pipelines_cmd.handle_pipeline_cancel(cli, pipeline_id, args, output_format)
+                        self.pipelines_cmd.handle_pipeline_cancel(
+                            cli, pipeline_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid pipeline ID: {args.pipeline_id}")
                         sys.exit(1)
@@ -509,11 +500,11 @@ class GitLabCLIv3:
                     print("Error: 'cancel' requires a pipeline ID")
                     sys.exit(1)
             else:
-                # It's pipeline IDs
                 ids = self.pipelines_cmd.parse_ids(args.action)
-                # Check if --follow flag is set and we have a single pipeline
-                if getattr(args, 'follow', False) and len(ids) == 1:
-                    self.pipelines_cmd.handle_pipeline_follow(cli, ids[0], args, output_format)
+                if getattr(args, "follow", False) and len(ids) == 1:
+                    self.pipelines_cmd.handle_pipeline_follow(
+                        cli, ids[0], args, output_format
+                    )
                 else:
                     self.pipelines_cmd.handle_pipelines(cli, ids, args, output_format)
 
@@ -522,14 +513,15 @@ class GitLabCLIv3:
                 print("Error: Please provide job ID(s) or use 'gl job --help' for help")
                 sys.exit(1)
             elif args.action == "help":
-                # Handle 'gl job help' same as 'gl job --help'
                 parser = self.create_parser()
-                parser.parse_args([args.area, '--help'])
+                parser.parse_args([args.area, "--help"])
             elif args.action == "detail":
                 if args.job_id:
                     try:
                         job_id = int(args.job_id)
-                        self.jobs_cmd.handle_job_detail(cli, job_id, args, output_format)
+                        self.jobs_cmd.handle_job_detail(
+                            cli, job_id, args, output_format
+                        )
                     except ValueError:
                         print(f"Error: Invalid job ID: {args.job_id}")
                         sys.exit(1)
@@ -581,7 +573,6 @@ class GitLabCLIv3:
                     print("Error: 'play' requires a job ID")
                     sys.exit(1)
             else:
-                # It's job IDs
                 ids = self.jobs_cmd.parse_ids(args.action)
                 self.jobs_cmd.handle_jobs(cli, ids, args, output_format)
 
@@ -589,17 +580,14 @@ class GitLabCLIv3:
         """Main entry point"""
         parser = self.create_parser()
 
-        # Handle no arguments or help
         if len(sys.argv) == 1 or (
             len(sys.argv) == 2 and sys.argv[1] in ["help", "--help", "-h"]
         ):
             self.print_main_help()
             sys.exit(0)
 
-        # Parse arguments
         args = parser.parse_args()
 
-        # Route to the appropriate handler
         self.route_command(args)
 
 
@@ -611,3 +599,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

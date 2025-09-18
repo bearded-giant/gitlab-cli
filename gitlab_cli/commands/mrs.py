@@ -45,7 +45,7 @@ class MRsCommand(BaseCommand):
             if output_format == "json":
                 self.show_mr_json(cli, mr_id, args)
             elif output_format == "table":
-                # Collect for table display
+
                 try:
                     mr = cli.explorer.project.mergerequests.get(mr_id)
                     all_mrs.append({
@@ -108,7 +108,7 @@ class MRsCommand(BaseCommand):
                 print(f"Pipeline: {p_color} {p_status}\033[0m (ID: {mr.head_pipeline.get('id')})")
 
             if args.pipelines:
-                # Show recent pipelines
+
                 pipelines = cli.explorer.get_pipelines_for_mr(mr_id)[:5]
                 if pipelines:
                     print("\nRecent Pipelines:")
@@ -206,8 +206,6 @@ class MRsCommand(BaseCommand):
                 "total": getattr(mr, "additions", 0) + getattr(mr, "deletions", 0),
             },
         }
-
-        # Get recent pipelines
         pipelines = cli.explorer.get_pipelines_for_mr(mr_id)[:5]
         if pipelines:
             output["recent_pipelines"] = pipelines
