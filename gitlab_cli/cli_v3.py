@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2024 BeardedGiant
+# https://github.com/bearded-giant/gitlab-tools
+# Licensed under Apache License 2.0
 
 import sys
 import argparse
@@ -599,4 +602,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

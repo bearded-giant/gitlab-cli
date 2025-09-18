@@ -1,3 +1,7 @@
+# Copyright 2024 BeardedGiant
+# https://github.com/bearded-giant/gitlab-tools
+# Licensed under Apache License 2.0
+
 """Pipeline command handlers for GitLab CLI"""
 
 import sys
@@ -8,45 +12,48 @@ from .base import BaseCommand
 
 
 class PipelineCommands(BaseCommand):
-    """Handles all pipeline-related commands"""
 
     def add_list_arguments(self, parser):
-        """Add arguments for pipeline listing/filtering"""
         parser.add_argument(
             "--since",
-            help="Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')"
+            help="Show pipelines since (e.g., '2d', '3h', '1w', '2 days ago', '2024-01-15')",
         )
         parser.add_argument(
-            "--before", 
-            help="Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')"
+            "--before",
+            help="Show pipelines before (e.g., '1d', '2h', '1 week ago', '2024-01-20')",
         )
         parser.add_argument(
             "--status",
             choices=["success", "failed", "running", "pending", "canceled", "skipped"],
-            help="Filter by pipeline status"
+            help="Filter by pipeline status",
         )
+        parser.add_argument("--ref", help="Filter by ref/branch name")
         parser.add_argument(
-            "--ref",
-            help="Filter by ref/branch name"
-        )
-        parser.add_argument(
-            "--user",
-            help="Filter by username who triggered the pipeline"
+            "--user", help="Filter by username who triggered the pipeline"
         )
         parser.add_argument(
             "--source",
-            choices=["push", "web", "trigger", "schedule", "api", "external", "pipeline", "chat", "merge_request_event"],
-            help="Filter by pipeline source"
+            choices=[
+                "push",
+                "web",
+                "trigger",
+                "schedule",
+                "api",
+                "external",
+                "pipeline",
+                "chat",
+                "merge_request_event",
+            ],
+            help="Filter by pipeline source",
         )
         parser.add_argument(
             "--limit",
             type=int,
             default=20,
-            help="Maximum number of pipelines to show (default: 20)"
+            help="Maximum number of pipelines to show (default: 20)",
         )
-    
+
     def handle_pipelines(self, cli, ids, args, output_format):
-        """Handle pipeline commands - show summaries by default"""
         status_filter = None
         if args.failed:
             status_filter = "failed"
@@ -74,7 +81,6 @@ class PipelineCommands(BaseCommand):
                 print("-" * 80)
 
     def search_pipeline_jobs(self, cli, pipeline_id, search_pattern, output_format):
-        """Search for jobs in a pipeline by name pattern"""
         try:
 
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
@@ -141,9 +147,7 @@ class PipelineCommands(BaseCommand):
                 print("-" * 100)
                 print(f"Found {len(matching_jobs)} job(s) matching '{search_pattern}'")
             else:
-                print(
-                    f"\nJobs matching '{search_pattern}' in Pipeline {pipeline_id}:"
-                )
+                print(f"\nJobs matching '{search_pattern}' in Pipeline {pipeline_id}:")
                 print("-" * 60)
 
                 for job in matching_jobs:
@@ -195,16 +199,16 @@ class PipelineCommands(BaseCommand):
             print(f"Error searching jobs in pipeline {pipeline_id}: {e}")
 
     def show_pipeline_summary(self, cli, pipeline_id, args, output_format):
-        """Show pipeline summary"""
 
         if cli.verbose:
             from pathlib import Path
+
             cache_path = Path(cli.explorer.db_file)
             print(f"\n📁 Cache location: {cache_path}")
             print(f"   Cache exists: {cache_path.exists()}")
             if cache_path.exists():
                 print(f"   Cache size: {cache_path.stat().st_size:,} bytes")
-        
+
         summary = cli.explorer.get_job_status_summary(pipeline_id, verbose=cli.verbose)
 
         if not summary:
@@ -299,12 +303,11 @@ class PipelineCommands(BaseCommand):
                 print("\n💡 Use --failed to see all failed jobs")
 
     def handle_pipeline_detail(self, cli, pipeline_id, args, output_format):
-        """Handle pipeline detail subcommand - show comprehensive pipeline information"""
         try:
 
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
             pipeline_variables = None
-            if getattr(args, 'show_variables', False):
+            if getattr(args, "show_variables", False):
                 try:
                     pipeline_variables = pipeline.variables.list(all=True)
                 except Exception as e:
@@ -373,11 +376,11 @@ class PipelineCommands(BaseCommand):
                         {
                             "key": var.key,
                             "value": var.value,
-                            "variable_type": getattr(var, "variable_type", "env_var")
+                            "variable_type": getattr(var, "variable_type", "env_var"),
                         }
                         for var in pipeline_variables
                     ]
-                
+
                 print(json.dumps(output, indent=2))
             elif output_format == "table":
                 # Table format for pipeline details
@@ -495,41 +498,47 @@ class PipelineCommands(BaseCommand):
                     print(f"\n{'='*60}")
                     print("Pipeline Variables:")
                     print(f"{'='*60}")
-                    
+
                     # Group variables by type
                     env_vars = []
                     file_vars = []
-                    
+
                     for var in pipeline_variables:
                         var_type = getattr(var, "variable_type", "env_var")
                         if var_type == "file":
                             file_vars.append(var)
                         else:
                             env_vars.append(var)
-                    
+
                     if env_vars:
                         print("\nEnvironment Variables:")
                         for var in env_vars:
                             # Mask sensitive values (show first and last 2 chars if long enough)
                             value = var.value
                             if len(value) > 10:
-                                masked_value = f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
+                                masked_value = (
+                                    f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
+                                )
                             elif len(value) > 4:
-                                masked_value = f"{value[0]}{'*' * (len(value) - 2)}{value[-1]}"
+                                masked_value = (
+                                    f"{value[0]}{'*' * (len(value) - 2)}{value[-1]}"
+                                )
                             else:
                                 masked_value = "*" * len(value)
-                            
+
                             print(f"  {var.key}: {masked_value}")
-                    
+
                     if file_vars:
                         print("\nFile Variables:")
                         for var in file_vars:
-                            print(f"  {var.key}: [File content, {len(var.value)} bytes]")
-                    
+                            print(
+                                f"  {var.key}: [File content, {len(var.value)} bytes]"
+                            )
+
                     print(f"\nTotal variables: {len(pipeline_variables)}")
-                elif getattr(args, 'show_variables', False):
+                elif getattr(args, "show_variables", False):
                     print("\nNo pipeline variables found or accessible.")
-                
+
                 print(f"\nPIPELINE_URL: {pipeline.web_url}")
                 print(f"PIPELINE_ID: {pipeline.id}")
 
@@ -537,61 +546,83 @@ class PipelineCommands(BaseCommand):
             print(f"Error fetching pipeline {pipeline_id} details: {e}")
 
     def handle_pipeline_retry(self, cli, pipeline_id, args, output_format):
-        """Handle pipeline retry - retry failed jobs in pipeline"""
         try:
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
-            
-            # Retry the pipeline
+
             result = pipeline.retry()
-            
+
             if output_format == "json":
-                print(json.dumps({
-                    "action": "retry",
-                    "pipeline_id": pipeline_id,
-                    "status": "success",
-                    "new_pipeline": {
-                        "id": result.id if hasattr(result, 'id') else pipeline_id,
-                        "status": result.status if hasattr(result, 'status') else "pending"
-                    }
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "retry",
+                            "pipeline_id": pipeline_id,
+                            "status": "success",
+                            "new_pipeline": {
+                                "id": (
+                                    result.id if hasattr(result, "id") else pipeline_id
+                                ),
+                                "status": (
+                                    result.status
+                                    if hasattr(result, "status")
+                                    else "pending"
+                                ),
+                            },
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"✅ Pipeline #{pipeline_id} retry initiated")
-                if hasattr(result, 'id'):
+                if hasattr(result, "id"):
                     print(f"New pipeline: #{result.id}")
-                print(f"Status: {result.status if hasattr(result, 'status') else 'pending'}")
-                
+                print(
+                    f"Status: {result.status if hasattr(result, 'status') else 'pending'}"
+                )
+
         except Exception as e:
             if output_format == "json":
-                print(json.dumps({
-                    "action": "retry",
-                    "pipeline_id": pipeline_id,
-                    "status": "error",
-                    "error": str(e)
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "retry",
+                            "pipeline_id": pipeline_id,
+                            "status": "error",
+                            "error": str(e),
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"❌ Error retrying pipeline {pipeline_id}: {e}")
             sys.exit(1)
 
     def handle_pipeline_rerun(self, cli, pipeline_id, args, output_format):
-        """Handle pipeline rerun - create a new pipeline for the same commit"""
         try:
 
             original_pipeline = cli.explorer.project.pipelines.get(pipeline_id)
-            new_pipeline = cli.explorer.project.pipelines.create({
-                'ref': original_pipeline.ref,
-                'variables': []  # You can add variables if needed
-            })
-            
+            new_pipeline = cli.explorer.project.pipelines.create(
+                {
+                    "ref": original_pipeline.ref,
+                    "variables": [],  # You can add variables if needed
+                }
+            )
+
             if output_format == "json":
-                print(json.dumps({
-                    "action": "rerun",
-                    "original_pipeline_id": pipeline_id,
-                    "new_pipeline_id": new_pipeline.id,
-                    "status": "success",
-                    "ref": new_pipeline.ref,
-                    "sha": new_pipeline.sha,
-                    "web_url": new_pipeline.web_url
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "rerun",
+                            "original_pipeline_id": pipeline_id,
+                            "new_pipeline_id": new_pipeline.id,
+                            "status": "success",
+                            "ref": new_pipeline.ref,
+                            "sha": new_pipeline.sha,
+                            "web_url": new_pipeline.web_url,
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"✅ New pipeline created for same commit")
                 print(f"Original pipeline: #{pipeline_id}")
@@ -600,103 +631,127 @@ class PipelineCommands(BaseCommand):
                 print(f"SHA: {new_pipeline.sha[:8]}")
                 print(f"Status: {new_pipeline.status}")
                 print(f"URL: {new_pipeline.web_url}")
-                
+
         except Exception as e:
             if output_format == "json":
-                print(json.dumps({
-                    "action": "rerun",
-                    "pipeline_id": pipeline_id,
-                    "status": "error",
-                    "error": str(e)
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "rerun",
+                            "pipeline_id": pipeline_id,
+                            "status": "error",
+                            "error": str(e),
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"❌ Error creating new pipeline for #{pipeline_id}: {e}")
             sys.exit(1)
 
     def handle_pipeline_cancel(self, cli, pipeline_id, args, output_format):
-        """Handle pipeline cancel - cancel a running pipeline"""
         try:
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
             if pipeline.status in ["success", "failed", "canceled", "skipped"]:
                 if output_format == "json":
-                    print(json.dumps({
-                        "action": "cancel",
-                        "pipeline_id": pipeline_id,
-                        "status": "error",
-                        "error": f"Pipeline is already {pipeline.status}"
-                    }, indent=2))
+                    print(
+                        json.dumps(
+                            {
+                                "action": "cancel",
+                                "pipeline_id": pipeline_id,
+                                "status": "error",
+                                "error": f"Pipeline is already {pipeline.status}",
+                            },
+                            indent=2,
+                        )
+                    )
                 else:
                     print(f"⚠️  Pipeline #{pipeline_id} is already {pipeline.status}")
                 return
-            
-            # Cancel the pipeline
+
             result = pipeline.cancel()
-            
+
             if output_format == "json":
-                print(json.dumps({
-                    "action": "cancel",
-                    "pipeline_id": pipeline_id,
-                    "status": "success",
-                    "pipeline_status": result.status if hasattr(result, 'status') else "canceled"
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "cancel",
+                            "pipeline_id": pipeline_id,
+                            "status": "success",
+                            "pipeline_status": (
+                                result.status
+                                if hasattr(result, "status")
+                                else "canceled"
+                            ),
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"✅ Pipeline #{pipeline_id} canceled")
-                print(f"Status: {result.status if hasattr(result, 'status') else 'canceled'}")
-                
+                print(
+                    f"Status: {result.status if hasattr(result, 'status') else 'canceled'}"
+                )
+
         except Exception as e:
             if output_format == "json":
-                print(json.dumps({
-                    "action": "cancel",
-                    "pipeline_id": pipeline_id,
-                    "status": "error",
-                    "error": str(e)
-                }, indent=2))
+                print(
+                    json.dumps(
+                        {
+                            "action": "cancel",
+                            "pipeline_id": pipeline_id,
+                            "status": "error",
+                            "error": str(e),
+                        },
+                        indent=2,
+                    )
+                )
             else:
                 print(f"❌ Error canceling pipeline {pipeline_id}: {e}")
             sys.exit(1)
-    
+
     def handle_pipeline_graph(self, cli, pipeline_id, args, output_format):
-        """Display pipeline graph visualization"""
         try:
             pipeline = cli.explorer.project.pipelines.get(pipeline_id)
             jobs = pipeline.jobs.list(all=True)
-            
+
             # Organize jobs by stage
             stages = defaultdict(list)
             stage_order = []
-            
+
             for job in jobs:
                 if job.stage not in stage_order:
                     stage_order.append(job.stage)
                 stages[job.stage].append(job)
-            
+
             if output_format == "json":
                 # JSON output with structured data
                 graph_data = {
                     "pipeline_id": pipeline_id,
                     "status": pipeline.status,
-                    "stages": []
+                    "stages": [],
                 }
                 for stage in stage_order:
                     stage_jobs = []
                     for job in stages[stage]:
-                        stage_jobs.append({
-                            "id": job.id,
-                            "name": job.name,
-                            "status": job.status,
-                            "duration": job.duration,
-                            "needs": getattr(job, 'needs', [])
-                        })
-                    graph_data["stages"].append({
-                        "name": stage,
-                        "jobs": stage_jobs
-                    })
+                        stage_jobs.append(
+                            {
+                                "id": job.id,
+                                "name": job.name,
+                                "status": job.status,
+                                "duration": job.duration,
+                                "needs": getattr(job, "needs", []),
+                            }
+                        )
+                    graph_data["stages"].append({"name": stage, "jobs": stage_jobs})
                 print(json.dumps(graph_data, indent=2))
             else:
                 # ASCII graph visualization
                 print(f"\n{'='*80}")
                 print(f"Pipeline #{pipeline_id} Graph")
-                print(f"Status: {self._get_status_icon(pipeline.status)} {pipeline.status}")
+                print(
+                    f"Status: {self._get_status_icon(pipeline.status)} {pipeline.status}"
+                )
                 print(f"{'='*80}\n")
                 stage_line = " → ".join(stage_order)
                 print(f"Stage Flow: {stage_line}\n")
@@ -706,39 +761,50 @@ class PipelineCommands(BaseCommand):
                     print(f"\n📦 Stage: {stage}")
                     print("  " + "─" * (76 - len(stage)))
                     stage_jobs.sort(key=lambda x: x.name)
-                    
+
                     for j, job in enumerate(stage_jobs):
-                        is_last = (j == len(stage_jobs) - 1)
+                        is_last = j == len(stage_jobs) - 1
                         prefix = "  └─" if is_last else "  ├─"
-                        
+
                         status_icon = self._get_status_icon(job.status)
-                        duration_str = self.format_duration(job.duration) if job.duration else "N/A"
+                        duration_str = (
+                            self.format_duration(job.duration)
+                            if job.duration
+                            else "N/A"
+                        )
                         is_parallel = "parallel" in job.name.lower()
                         parallel_marker = " [P]" if is_parallel else ""
-                        
+
                         print(f"{prefix} {status_icon} {job.name}{parallel_marker}")
-                        print(f"  {'  ' if not is_last else '  '}  Duration: {duration_str} | ID: {job.id}")
-                        if hasattr(job, 'needs') and job.needs:
-                            needs_str = ", ".join([n['name'] if isinstance(n, dict) else str(n) for n in job.needs])
-                            print(f"  {'  ' if not is_last else '  '}  Needs: {needs_str}")
-                
+                        print(
+                            f"  {'  ' if not is_last else '  '}  Duration: {duration_str} | ID: {job.id}"
+                        )
+                        if hasattr(job, "needs") and job.needs:
+                            needs_str = ", ".join(
+                                [
+                                    n["name"] if isinstance(n, dict) else str(n)
+                                    for n in job.needs
+                                ]
+                            )
+                            print(
+                                f"  {'  ' if not is_last else '  '}  Needs: {needs_str}"
+                            )
+
                 # Test duration graph for parallel jobs
                 self._display_test_duration_graph(stages, stage_order)
-                
+
                 print(f"\n{'='*80}")
-        
+
         except Exception as e:
             if output_format == "json":
-                print(json.dumps({
-                    "error": str(e),
-                    "pipeline_id": pipeline_id
-                }, indent=2))
+                print(
+                    json.dumps({"error": str(e), "pipeline_id": pipeline_id}, indent=2)
+                )
             else:
                 print(f"❌ Error generating pipeline graph: {e}")
             sys.exit(1)
-    
+
     def _get_status_icon(self, status):
-        """Get icon for job/pipeline status"""
         return {
             "success": "[SUCCESS]",
             "failed": "[FAILED]",
@@ -747,44 +813,45 @@ class PipelineCommands(BaseCommand):
             "canceled": "[CANCELED]",
             "skipped": "[SKIPPED]",
             "manual": "[MANUAL]",
-            "created": "[CREATED]"
+            "created": "[CREATED]",
         }.get(status, "[UNKNOWN]")
-    
+
     def handle_pipeline_follow(self, cli, pipeline_id, args, output_format):
-        """Follow pipeline progress, auto-tail running jobs"""
         try:
             print(f"Following pipeline #{pipeline_id}...")
             print("Press Ctrl+C to stop following\n")
             print("=" * 80)
-            
+
             completed_statuses = ["success", "failed", "canceled", "skipped"]
             poll_interval = 5  # seconds
             last_running_job = None
             job_tail_process = None
-            
+
             while True:
                 try:
 
                     pipeline = cli.explorer.project.pipelines.get(pipeline_id)
                     jobs = pipeline.jobs.list(all=True)
-                    
+
                     # Clear screen for fresh display
                     print("\033[H\033[J", end="")  # Clear screen
-                    print(f"Pipeline #{pipeline_id} - {self._get_status_icon(pipeline.status)} {pipeline.status.upper()}")
+                    print(
+                        f"Pipeline #{pipeline_id} - {self._get_status_icon(pipeline.status)} {pipeline.status.upper()}"
+                    )
                     print(f"SHA: {pipeline.sha[:8]} | Ref: {pipeline.ref}")
                     print("=" * 80)
-                    
+
                     # Organize jobs by stage
                     stages = defaultdict(list)
                     stage_order = []
                     running_jobs = []
                     failed_jobs = []
-                    
+
                     for job in jobs:
                         if job.stage not in stage_order:
                             stage_order.append(job.stage)
                         stages[job.stage].append(job)
-                        
+
                         if job.status == "running":
                             running_jobs.append(job)
                         elif job.status == "failed" and not job.allow_failure:
@@ -792,15 +859,21 @@ class PipelineCommands(BaseCommand):
                     for stage in stage_order:
                         print(f"\nStage: {stage}")
                         for job in stages[stage]:
-                            duration = f"({cli.explorer.format_duration(job.duration)})" if job.duration else ""
+                            duration = (
+                                f"({cli.explorer.format_duration(job.duration)})"
+                                if job.duration
+                                else ""
+                            )
                             status_icon = self._get_status_icon(job.status)
                             print(f"  {status_icon} {job.name} {duration}")
-                    
+
                     print("\n" + "=" * 80)
                     if running_jobs:
                         current_job = running_jobs[0]  # Focus on first running job
-                        print(f"\nCurrently running: {current_job.name} (#{current_job.id})")
-                        
+                        print(
+                            f"\nCurrently running: {current_job.name} (#{current_job.id})"
+                        )
+
                         # If it's a different job than we were tailing, show recent logs
                         if last_running_job != current_job.id:
                             last_running_job = current_job.id
@@ -810,7 +883,7 @@ class PipelineCommands(BaseCommand):
                                 trace = current_job.trace()
                                 if isinstance(trace, bytes):
                                     trace = trace.decode("utf-8", errors="replace")
-                                lines = trace.split('\n')
+                                lines = trace.split("\n")
                                 recent_lines = lines[-10:] if len(lines) > 10 else lines
                                 for line in recent_lines:
                                     if line.strip():
@@ -819,94 +892,107 @@ class PipelineCommands(BaseCommand):
                                 print("  (Unable to fetch job logs)")
                     if pipeline.status in completed_statuses:
                         print(f"\n{'='*80}")
-                        print(f"Pipeline completed with status: {pipeline.status.upper()}")
-                        
+                        print(
+                            f"Pipeline completed with status: {pipeline.status.upper()}"
+                        )
+
                         if failed_jobs:
                             print(f"\nFailed jobs:")
                             for job in failed_jobs:
                                 print(f"  - {job.name} (#{job.id})")
                                 print(f"    Use 'gl job logs {job.id}' to see details")
-                        
-                        print(f"\nTotal duration: {cli.explorer.format_duration(pipeline.duration)}")
+
+                        print(
+                            f"\nTotal duration: {cli.explorer.format_duration(pipeline.duration)}"
+                        )
                         break
-                    print(f"\nRefreshing in {poll_interval} seconds... (Ctrl+C to stop)")
-                    
+                    print(
+                        f"\nRefreshing in {poll_interval} seconds... (Ctrl+C to stop)"
+                    )
+
                     # Wait before next poll
                     time.sleep(poll_interval)
-                    
+
                 except KeyboardInterrupt:
                     print("\n\nStopped following pipeline")
                     sys.exit(0)
                 except Exception as e:
                     print(f"\nError refreshing pipeline status: {e}")
                     time.sleep(poll_interval)
-                    
+
         except KeyboardInterrupt:
             print("\n\nStopped following pipeline")
             sys.exit(0)
         except Exception as e:
-            self.output_error(f"Error following pipeline {pipeline_id}: {e}", output_format)
-    
+            self.output_error(
+                f"Error following pipeline {pipeline_id}: {e}", output_format
+            )
+
     def _display_test_duration_graph(self, stages, stage_order):
-        """Display duration graph for parallel test jobs"""
         # Find parallel test jobs
         parallel_jobs = []
-        
+
         for stage in stage_order:
             for job in stages[stage]:
                 if "parallel" in job.name.lower() and job.duration:
                     # Extract parallel number if available
                     import re
-                    match = re.search(r'(\d+)/(\d+)', job.name)
+
+                    match = re.search(r"(\d+)/(\d+)", job.name)
                     if match:
                         parallel_num = int(match.group(1))
                         parallel_total = int(match.group(2))
                     else:
                         parallel_num = 0
                         parallel_total = 0
-                    
-                    parallel_jobs.append({
-                        'name': job.name,
-                        'duration': job.duration,
-                        'status': job.status,
-                        'num': parallel_num,
-                        'total': parallel_total
-                    })
-        
+
+                    parallel_jobs.append(
+                        {
+                            "name": job.name,
+                            "duration": job.duration,
+                            "status": job.status,
+                            "num": parallel_num,
+                            "total": parallel_total,
+                        }
+                    )
+
         if not parallel_jobs:
             return
-        parallel_jobs.sort(key=lambda x: x['num'])
-        
+        parallel_jobs.sort(key=lambda x: x["num"])
+
         print(f"\n{'='*80}")
         print("Parallel Test Duration Graph")
         print(f"{'='*80}")
-        
+
         # Find max duration for scaling
-        max_duration = max(job['duration'] for job in parallel_jobs)
+        max_duration = max(job["duration"] for job in parallel_jobs)
         max_bar_width = 50
         for job in parallel_jobs[:20]:  # Limit to first 20 for readability
             # Calculate bar width
-            bar_width = int((job['duration'] / max_duration) * max_bar_width)
+            bar_width = int((job["duration"] / max_duration) * max_bar_width)
             bar = "█" * bar_width
-            if job['num'] > 0:
+            if job["num"] > 0:
                 job_label = f"Test {job['num']:3d}/{job['total']}"
             else:
-                job_label = job['name'][:15]
-            
-            duration_str = self.format_duration(job['duration'])
-            status_icon = self._get_status_icon(job['status'])
-            
-            print(f"{job_label:15} {status_icon} |{bar:<{max_bar_width}} {duration_str}")
-        
+                job_label = job["name"][:15]
+
+            duration_str = self.format_duration(job["duration"])
+            status_icon = self._get_status_icon(job["status"])
+
+            print(
+                f"{job_label:15} {status_icon} |{bar:<{max_bar_width}} {duration_str}"
+            )
+
         if len(parallel_jobs) > 20:
             print(f"\n... and {len(parallel_jobs) - 20} more parallel jobs")
-        durations = [j['duration'] for j in parallel_jobs]
+        durations = [j["duration"] for j in parallel_jobs]
         avg_duration = sum(durations) / len(durations)
         min_duration = min(durations)
         max_duration = max(durations)
-        
+
         print(f"\nStatistics:")
         print(f"  Total parallel jobs: {len(parallel_jobs)}")
         print(f"  Average duration: {self.format_duration(avg_duration)}")
         print(f"  Min duration: {self.format_duration(min_duration)}")
         print(f"  Max duration: {self.format_duration(max_duration)}")
+

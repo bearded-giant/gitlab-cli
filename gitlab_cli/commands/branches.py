@@ -1,18 +1,16 @@
+# Copyright 2024 BeardedGiant
+# https://github.com/bearded-giant/gitlab-tools
+# Licensed under Apache License 2.0
+
 """Branches command handler"""
 
-import sys
 import subprocess
 import webbrowser
 from .base import BaseCommand
 
 
-
-
 class BranchesCommand(BaseCommand):
-    """Handle branch-related commands"""
-
     def add_arguments(self, parser):
-        """Add branch-specific arguments to parser"""
         parser.add_argument(
             "branch_name", nargs="?", help="Branch name (defaults to current branch)"
         )
@@ -26,14 +24,15 @@ class BranchesCommand(BaseCommand):
             "--latest", action="store_true", help="Show only the latest MR"
         )
         parser.add_argument(
-            "--open", action="store_true", help="Open the MR in web browser (opens latest if multiple)"
+            "--open",
+            action="store_true",
+            help="Open the MR in web browser (opens latest if multiple)",
         )
         parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
     def handle(self, cli, args, output_format):
-        """Handle branch commands"""
         if not args.branch_name:
             result = subprocess.run(
                 ["git", "branch", "--show-current"], capture_output=True, text=True
@@ -51,7 +50,7 @@ class BranchesCommand(BaseCommand):
                 return
 
             mr_to_open = mrs[0] if args.latest or len(mrs) == 1 else mrs[0]
-            mr_url = mr_to_open['web_url']
+            mr_url = mr_to_open["web_url"]
 
             print(f"Opening MR !{mr_to_open['iid']}: {mr_to_open['title']}")
             print(f"MR_URL: {mr_url}")
@@ -66,3 +65,4 @@ class BranchesCommand(BaseCommand):
 
         args.format = output_format
         cli.cmd_branch_mrs(args)
+

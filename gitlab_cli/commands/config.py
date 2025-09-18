@@ -1,13 +1,15 @@
+# Copyright 2024 BeardedGiant
+# https://github.com/bearded-giant/gitlab-tools
+# Licensed under Apache License 2.0
+
 """Configuration command handler"""
 
 from .base import BaseCommand
 
 
 class ConfigCommand(BaseCommand):
-    """Handle configuration commands"""
 
     def add_arguments(self, subparsers):
-        """Add config-specific arguments to parser"""
         parser = subparsers.add_parser(
             "config",
             help="Configuration management",
@@ -15,11 +17,11 @@ class ConfigCommand(BaseCommand):
         )
         config_subparsers = parser.add_subparsers(dest="action", help="Config action")
 
-        # config show
         config_subparsers.add_parser("show", help="Show current configuration")
 
-        # config set
-        set_parser = config_subparsers.add_parser("set", help="Set configuration values")
+        set_parser = config_subparsers.add_parser(
+            "set", help="Set configuration values"
+        )
         set_parser.add_argument("--gitlab-url", help="GitLab server URL")
         set_parser.add_argument("--project", help="GitLab project path")
         set_parser.add_argument(
@@ -34,7 +36,6 @@ class ConfigCommand(BaseCommand):
         )
 
     def handle(self, config, args):
-        """Handle configuration commands"""
         if not hasattr(args, "action") or not args.action:
 
             args.action = "show"
@@ -45,7 +46,6 @@ class ConfigCommand(BaseCommand):
             self.set_config(config, args)
 
     def show_config(self, config):
-        """Display current configuration"""
         print(f"GitLab URL:     {config.gitlab_url or 'Not set'}")
         print(f"Project:        {config.project_path or 'Not set (auto-detected)'}")
         print(f"Token:          {'Set' if config.gitlab_token else 'Not set'}")
@@ -54,7 +54,6 @@ class ConfigCommand(BaseCommand):
         print(f"Cache dir:      {config.cache_dir}")
 
     def set_config(self, config, args):
-        """Update configuration values"""
         update = {}
         if hasattr(args, "gitlab_url") and args.gitlab_url:
             update["gitlab_url"] = args.gitlab_url
@@ -70,3 +69,4 @@ class ConfigCommand(BaseCommand):
             print("Configuration saved")
         else:
             print("No configuration values provided")
+
