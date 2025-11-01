@@ -29,6 +29,11 @@ class BranchesCommand(BaseCommand):
             help="Open the MR in web browser (opens latest if multiple)",
         )
         parser.add_argument(
+            "--stage-url",
+            action="store_true",
+            help="Show stage environment URL for the branch",
+        )
+        parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
@@ -41,6 +46,11 @@ class BranchesCommand(BaseCommand):
                 args.branch_name = result.stdout.strip()
             else:
                 self.output_error("Not in a git repository or cannot determine branch")
+
+        if args.stage_url:
+            stage_url = f"https://{args.branch_name}.stage.rechargeapps.net/config"
+            print(f"STAGE_URL: {stage_url}")
+            return
 
         if args.open:
             mrs = cli.explorer.get_mrs_for_branch(args.branch_name, args.state)

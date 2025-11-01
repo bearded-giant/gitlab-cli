@@ -100,6 +100,11 @@ class BranchCommand(BaseCommand):
             help="Limit number of results (default: 10)",
         )
         parser.add_argument(
+            "--stage-url",
+            action="store_true",
+            help="Show stage environment URL for the branch",
+        )
+        parser.add_argument(
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
@@ -252,6 +257,10 @@ class BranchCommand(BaseCommand):
             return
         if args.open_mr:
             self.open_mr_in_browser(cli, branch_name)
+            return
+        if args.stage_url:
+            stage_url = f"https://{branch_name}.stage.rechargeapps.net/config"
+            print(f"STAGE_URL: {stage_url}")
             return
 
         # If --latest flag is used without specifying 'mr' resource, show latest MR
