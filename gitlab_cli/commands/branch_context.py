@@ -26,7 +26,7 @@ class BranchCommand(BaseCommand):
         parser.add_argument(
             "resource",
             nargs="?",
-            choices=["mr", "pipeline", "commit", "info"],
+            choices=["mr", "pipeline", "commit", "info", "approvals", "mr-approvals"],
             help="Resource to show for branch (when branch name is specified)",
         )
 
@@ -218,6 +218,8 @@ class BranchCommand(BaseCommand):
             "mrs",
             "merge-request",
             "merge-requests",
+            "mr-approvals",
+            "approvals",
             "pipeline",
             "pipelines",
             "commit",
@@ -272,6 +274,8 @@ class BranchCommand(BaseCommand):
             self.show_branch_info(cli, branch_name, output_format)
         elif resource == "mr":
             self.show_branch_mrs(cli, branch_name, args, output_format)
+        elif resource in ["mr-approvals", "approvals"]:
+            self.show_branch_mr_approvals(cli, branch_name, args, output_format)
         elif resource == "pipeline":
             self.show_branch_pipelines(cli, branch_name, args, output_format)
         elif resource == "commit":
@@ -409,6 +413,79 @@ class BranchCommand(BaseCommand):
                     print(f"   Pipeline: #{mr['pipeline_id']} {mr['pipeline_status']}")
                 print(f"   MR_ID: {mr['iid']}")
                 print(f"   MR_URL: {mr['web_url']}")
+
+    def show_branch_mr_approvals(self, cli, branch_name, args, output_format):
+        mrs = cli.explorer.get_mrs_for_branch(branch_name, "opened")
+        if not mrs:
+            print(f"No open merge requests found for branch '{branch_name}'")
+            return
+
+        mr_data = mrs[0]
+        mr_id = mr_data["iid"]
+
+        try:
+            mr = cli.explorer.project.mergerequests.get(mr_id)
+            approvals = mr.approvals.get()
+
+            approved_by = []
+            if hasattr(approvals, "approved_by") and approvals.approved_by:
+                approved_by = [u["user"]["username"] for u in approvals.approved_by]
+
+            approval_rules = []
+            try:
+                rules = mr.approval_rules.list()
+                for rule in rules:
+                    rule_data = {
+                        "name": rule.name,
+                        "approvals_required": rule.approvals_required,
+                        "approved_by": [u["username"] for u in getattr(rule, "approved_by", [])],
+                        "eligible_approvers": [u["username"] for u in getattr(rule, "eligible_approvers", [])],
+                    }
+                    approval_rules.append(rule_data)
+            except:
+                pass
+
+            if output_format == "json":
+                output = {
+                    "mr_iid": mr.iid,
+                    "title": mr.title,
+                    "approved": approvals.approved,
+                    "approvals_required": approvals.approvals_required,
+                    "approvals_left": approvals.approvals_left,
+                    "approved_by": approved_by,
+                    "approval_rules": approval_rules,
+                }
+                print(json.dumps(output, indent=2))
+            else:
+                print(f"\nApprovals for MR !{mr.iid}: {mr.title}")
+                print("-" * 80)
+
+                status = "Approved" if approvals.approved else f"{approvals.approvals_left} more needed"
+                print(f"\nStatus: {status}")
+                print(f"Required: {approvals.approvals_required}")
+
+                if approved_by:
+                    print(f"Approved by: {', '.join(['@' + u for u in approved_by])}")
+                else:
+                    print("Approved by: (none)")
+
+                if approval_rules:
+                    print(f"\nApproval Rules:")
+                    for rule in approval_rules:
+                        rule_approved = len(rule["approved_by"])
+                        rule_status = f"{rule_approved}/{rule['approvals_required']}"
+                        print(f"  {rule['name']}: {rule_status}")
+                        if rule["approved_by"]:
+                            print(f"    Approved: {', '.join(['@' + u for u in rule['approved_by']])}")
+                        if rule["eligible_approvers"]:
+                            print(f"    Eligible: {', '.join(['@' + u for u in rule['eligible_approvers'][:5]])}")
+                            if len(rule["eligible_approvers"]) > 5:
+                                print(f"              ... and {len(rule['eligible_approvers']) - 5} more")
+
+                print(f"\nMR_URL: {mr.web_url}")
+
+        except Exception as e:
+            print(f"Error fetching approvals: {e}")
 
     def show_branch_pipelines(self, cli, branch_name, args, output_format):
         try:
