@@ -79,6 +79,7 @@ class CodeSearchCommand(BaseCommand):
         # resolve project paths and filter excludes
         excludes = getattr(args, "exclude", []) or []
         seen_projects = set()
+        last_seen_line = {}
         excluded_count = 0
         formatted = []
         for r in all_results:
@@ -99,20 +100,43 @@ class CodeSearchCommand(BaseCommand):
 
             if not include_comments:
                 snippet_raw = r.get("data", "")
+                lines = snippet_raw.split("\n")
+
+                # check if snippet is inside a docstring:
+                # any line contains a triple-quote delimiter
+                has_docstring = any(
+                    '"""' in sl or "'''" in sl for sl in lines
+                )
+                if has_docstring:
+                    excluded_count += 1
+                    continue
+
                 # check first non-empty line for comment patterns
                 first_line = ""
-                for sl in snippet_raw.split("\n"):
+                for sl in lines:
                     stripped = sl.strip()
                     if stripped:
                         first_line = stripped
                         break
-                if first_line.startswith(("#", "//", "/*", "*", "--", "<!--", '"""', "'''")):
+                if first_line.startswith(("#", "//", "/*", "*", "--", "<!--")):
                     excluded_count += 1
                     continue
 
-            seen_projects.add(project_path)
-            startline = r.get("startline", "")
+            # deduplicate: skip results within 3 lines of a previous hit in same file
+            startline = r.get("startline", 0)
             file_path = r.get("path", r.get("filename", "unknown"))
+            full_key = f"{project_path}/{file_path}"
+            try:
+                startline_int = int(startline)
+            except (ValueError, TypeError):
+                startline_int = 0
+
+            if full_key in last_seen_line and startline_int - last_seen_line[full_key] <= 3:
+                excluded_count += 1
+                continue
+            last_seen_line[full_key] = startline_int
+
+            seen_projects.add(project_path)
             data = r.get("data", "").rstrip("\n")
 
             # truncate snippet: max 5 lines, max 200 chars per line
