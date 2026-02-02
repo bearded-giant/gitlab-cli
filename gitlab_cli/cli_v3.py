@@ -329,7 +329,19 @@ class GitLabCLIv3:
             help="Output directory (default: ~/.cache/gitlab-cli/)",
         )
         code_parser.add_argument(
-            "--format", choices=["friendly", "json"], help="Output format"
+            "--exclude", "-e", action="append", default=[],
+            help="Exclude projects matching substring (repeatable)",
+        )
+        code_parser.add_argument(
+            "--comments", action="store_true", default=False,
+            help="Include comment lines in results (excluded by default)",
+        )
+        code_parser.add_argument(
+            "--files-only", action="store_true",
+            help="Output unique file paths only (no snippets)",
+        )
+        code_parser.add_argument(
+            "--format", choices=["friendly", "json", "csv"], help="Output format"
         )
 
     def print_main_help(self):

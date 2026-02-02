@@ -4,7 +4,9 @@
 
 """Code search across GitLab group projects"""
 
+import csv
 import gitlab
+import io
 import json
 import os
 import re
@@ -72,8 +74,12 @@ class CodeSearchCommand(BaseCommand):
             print(f"No results for '{args.search_term}' in group '{group_path}'")
             return
 
-        # resolve project paths for results
+        include_comments = getattr(args, "comments", False)
+
+        # resolve project paths and filter excludes
+        excludes = getattr(args, "exclude", []) or []
         seen_projects = set()
+        excluded_count = 0
         formatted = []
         for r in all_results:
             pid = r.get("project_id")
@@ -86,6 +92,23 @@ class CodeSearchCommand(BaseCommand):
                     project_map[pid] = project_path
                 except Exception:
                     project_path = f"unknown-project-{pid}"
+
+            if any(ex in project_path for ex in excludes):
+                excluded_count += 1
+                continue
+
+            if not include_comments:
+                snippet_raw = r.get("data", "")
+                # check first non-empty line for comment patterns
+                first_line = ""
+                for sl in snippet_raw.split("\n"):
+                    stripped = sl.strip()
+                    if stripped:
+                        first_line = stripped
+                        break
+                if first_line.startswith(("#", "//", "/*", "*", "--", "<!--", '"""', "'''")):
+                    excluded_count += 1
+                    continue
 
             seen_projects.add(project_path)
             startline = r.get("startline", "")
@@ -108,13 +131,40 @@ class CodeSearchCommand(BaseCommand):
                 "full_path": f"{project_path}/{file_path}",
             })
 
+        files_only = getattr(args, "files_only", False)
+
         if output_format == "json":
-            output = {
-                "results": formatted,
-                "total": len(formatted),
-                "projects_searched": len(seen_projects),
-            }
+            if files_only:
+                unique_files = sorted(set(r["full_path"] for r in formatted))
+                output = {"files": unique_files, "total": len(unique_files)}
+            else:
+                output = {
+                    "results": formatted,
+                    "total": len(formatted),
+                    "projects_searched": len(seen_projects),
+                }
             print(json.dumps(output, indent=2))
+            return
+
+        excluded_msg = f" ({excluded_count} excluded)" if excluded_count else ""
+
+        if files_only:
+            unique_files = sorted(set(r["full_path"] for r in formatted))
+            output_text = "\n".join(unique_files) + "\n"
+            ext = "txt"
+            print(output_text)
+            print(f"{len(unique_files)} files across {len(seen_projects)} projects{excluded_msg}")
+        elif output_format == "csv":
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(["project", "file", "line", "ref", "snippet"])
+            for r in formatted:
+                snippet = r["data"].replace("\n", " ").strip()
+                writer.writerow([r["project"], r["path"], r["startline"], r["ref"], snippet])
+            output_text = buf.getvalue()
+            ext = "csv"
+            print(output_text)
+            print(f"Found {len(formatted)} results across {len(seen_projects)} projects{excluded_msg}")
         else:
             lines = []
             for r in formatted:
@@ -124,28 +174,29 @@ class CodeSearchCommand(BaseCommand):
                     f"    {line}" for line in snippet.split("\n")
                 )
                 lines.append(f"{location}\n{indented}")
-
-            output_text = "\n\n".join(lines)
+            output_text = "\n\n".join(lines) + "\n"
+            ext = "txt"
             print(output_text)
-            print(f"\nFound {len(formatted)} results across {len(seen_projects)} projects")
+            print(f"Found {len(formatted)} results across {len(seen_projects)} projects{excluded_msg}")
 
-            # save to file
-            cache_dir = args.out
-            os.makedirs(cache_dir, exist_ok=True)
+        # save to file
+        cache_dir = args.out
+        os.makedirs(cache_dir, exist_ok=True)
 
-            slug = re.sub(r'[^a-z0-9]+', '-', args.search_term.lower())[:30].strip('-')
-            stamp = datetime.now().strftime("%Y%m%d-%H%M")
-            filename = f"search-{slug}-{stamp}.txt"
-            out_path = os.path.join(cache_dir, filename)
+        slug = re.sub(r'[^a-z0-9]+', '-', args.search_term.lower())[:30].strip('-')
+        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        filename = f"search-{slug}-{stamp}.{ext}"
+        out_path = os.path.join(cache_dir, filename)
 
-            with open(out_path, "w") as f:
-                f.write(output_text + "\n")
+        with open(out_path, "w") as f:
+            f.write(output_text)
 
-            # symlink latest
-            link_path = os.path.join(cache_dir, "last_search.txt")
-            if os.path.islink(link_path) or os.path.exists(link_path):
-                os.remove(link_path)
-            os.symlink(out_path, link_path)
+        # symlink latest
+        link_name = f"last_search.{ext}"
+        link_path = os.path.join(cache_dir, link_name)
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+        os.symlink(out_path, link_path)
 
-            print(f"Results saved to {out_path}")
-            print(f"Symlinked: last_search.txt -> {filename}")
+        print(f"Results saved to {out_path}")
+        print(f"Symlinked: {link_name} -> {filename}")
