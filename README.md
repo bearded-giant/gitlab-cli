@@ -67,8 +67,8 @@ gl branch $(git branch --show-current)
 
 The auto-detection works with:
 - Standard projects: `group/project`
-- Nested groups: `engineering/foo/bar`
-- Monorepos: `engineering/monolith`
+- Nested groups: `myorg/team/service`
+- Monorepos: `myorg/monolith`
 
 ### Manual Project Override (Optional)
 ```bash
@@ -206,6 +206,11 @@ gl branch pipeline --limit 5        # Limit number of results
 # MR operations
 gl branch --create-mr               # Opens browser to create MR from current branch
 gl branch --latest                  # Shows only the most recent MR for current branch
+
+# MR approvals for current branch
+gl branch approvals                 # Show approval status for current branch's MR
+gl branch feature-xyz approvals     # Show approval status for specific branch's MR
+gl branch approvals --format json   # JSON output
 
 # Filter options
 gl branch mr --state all            # All MRs (opened, merged, closed)
@@ -392,6 +397,52 @@ gl cache clear --all                   # Clear entire cache (with confirmation)
 gl cache clear --pipeline 123456       # Clear specific pipeline
 gl cache clear --older-than 7          # Clear pipelines older than 7 days
 gl cache clear --all --force           # Clear all without confirmation
+```
+
+### Code Search Commands
+
+Search code across all projects in a GitLab group. Requires advanced search (Elasticsearch) enabled on the instance.
+
+```bash
+# Search across a group
+gl search code redis --group myorg
+
+# Filter by file extension
+gl search code redis --group myorg -x py
+
+# Use GitLab query syntax for precise searches
+gl search code "redis filename:*.py" --group myorg
+gl search code "import redis filename:requirements*.txt" --group myorg
+gl search code "redis path:src/" --group myorg
+
+# Save to custom directory
+gl search code redis --group myorg -o ~/my-searches/
+
+# JSON output
+gl search code redis --group myorg --format json
+```
+
+Results are saved to timestamped files in `~/.cache/gitlab-cli/` (e.g., `search-redis-20260201-1931.txt`). A `last_search.txt` symlink always points to the most recent search.
+
+**Post-search filtering with rg:**
+```bash
+# Exclude a project
+rg -v legacy-monolith ~/.cache/gitlab-cli/last_search.txt
+
+# Only python files
+rg '\.py:' ~/.cache/gitlab-cli/last_search.txt
+
+# Only a specific project
+rg 'myorg/platform' ~/.cache/gitlab-cli/last_search.txt
+
+# Combine: python files, no legacy-monolith
+rg -v legacy-monolith ~/.cache/gitlab-cli/last_search.txt | rg '\.py:'
+
+# Just file paths (no snippets)
+rg -v '^ ' ~/.cache/gitlab-cli/last_search.txt | rg -v '^$'
+
+# Count results per project
+rg -v '^ ' ~/.cache/gitlab-cli/last_search.txt | rg -v '^$' | sed 's|/[^/]*/[^/]*$||' | sort | uniq -c | sort -rn
 ```
 
 ## Example Workflows
@@ -600,6 +651,8 @@ gl pipeline detail $PIPELINE_ID
 - **Multiple output formats**: Friendly (default), table, or JSON for scripting
 - **Auto-detection**: Automatically detects GitLab project from git remote
 - **Global availability**: Install with pipx for use across all projects
+- **MR approvals**: View approval status, rules, and who approved from the CLI
+- **Group code search**: Search code across all projects in a group with rg-friendly output
 
 ## Output Examples
 

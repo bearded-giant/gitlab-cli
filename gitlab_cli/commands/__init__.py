@@ -8,14 +8,16 @@ from .config import ConfigCommand
 from .cache import CacheCommand
 from .branch_context import BranchCommand
 from .mr_context import MRContextCommand
+from .code_search import CodeSearchCommand
 
 __all__ = [
     'BranchesCommand',
-    'PipelineCommands', 
+    'PipelineCommands',
     'JobCommands',
     'MRsCommand',
     'ConfigCommand',
     'CacheCommand',
     'BranchCommand',
-    'MRContextCommand'
+    'MRContextCommand',
+    'CodeSearchCommand',
 ]

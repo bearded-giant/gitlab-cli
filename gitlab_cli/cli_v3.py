@@ -3,6 +3,7 @@
 # https://github.com/bearded-giant/gitlab-tools
 # Licensed under Apache License 2.0
 
+import os
 import sys
 import argparse
 
@@ -16,6 +17,7 @@ from .commands import (
     ConfigCommand,
     CacheCommand,
     BranchCommand,
+    CodeSearchCommand,
 )
 from .commands.search import SearchCommand
 from .commands.mr_context import MRContextCommand
@@ -33,6 +35,7 @@ class GitLabCLIv3:
         self.config_cmd = ConfigCommand()
         self.cache_cmd = CacheCommand()
         self.search_cmd = SearchCommand()
+        self.code_search_cmd = CodeSearchCommand()
 
     def create_parser(self):
         """Create the main argument parser with subcommands"""
@@ -60,6 +63,7 @@ class GitLabCLIv3:
         self._add_mr_parser(subparsers)
         self._add_pipeline_parser(subparsers)
         self._add_job_parser(subparsers)
+        self._add_search_parser(subparsers)
         self.config_cmd.add_arguments(subparsers)
         self.cache_cmd.add_arguments(subparsers)
 
@@ -301,6 +305,33 @@ class GitLabCLIv3:
             "--format", choices=["friendly", "table", "json"], help="Output format"
         )
 
+    def _add_search_parser(self, subparsers):
+        parser = subparsers.add_parser(
+            "search",
+            help="Search operations",
+            description="Search code across GitLab groups",
+        )
+        search_sub = parser.add_subparsers(dest="search_type", metavar="<type>")
+
+        code_parser = search_sub.add_parser(
+            "code", help="Search code across group projects"
+        )
+        code_parser.add_argument("search_term", help="Search term")
+        code_parser.add_argument(
+            "--group", "-g", required=True, help="Group path (e.g., engineering)"
+        )
+        code_parser.add_argument(
+            "--extension", "-x", help="Filter by file extension (e.g., py, rb)"
+        )
+        code_parser.add_argument(
+            "--out", "-o",
+            default=os.path.expanduser("~/.cache/gitlab-cli"),
+            help="Output directory (default: ~/.cache/gitlab-cli/)",
+        )
+        code_parser.add_argument(
+            "--format", choices=["friendly", "json"], help="Output format"
+        )
+
     def print_main_help(self):
         """Print friendly main help"""
         print("GitLab CLI - Explore pipelines, jobs, and merge requests\n")
@@ -343,6 +374,8 @@ class GitLabCLIv3:
         print("  gl cache stats              # Show cache statistics")
         print("  gl cache list               # List cached pipelines")
         print("  gl cache clear              # Clear cache\n")
+        print("  gl search code <term> -g <group>  # Search code across group")
+        print("    rg -v exclude_pattern ~/.cache/gitlab-cli/last_search.txt\n")
         print("Diff View Options:")
         print("  gl mr <id> diff             # Default view (from config)")
         print("  gl mr <id> diff --view split    # Side-by-side diff")
@@ -362,6 +395,20 @@ class GitLabCLIv3:
 
         if args.area == "cache":
             self.cache_cmd.handle(self.config, args)
+            return
+
+        if args.area == "search":
+            if not hasattr(args, "search_type") or not args.search_type:
+                print("Usage: gl search code <term> --group <group>")
+                sys.exit(1)
+            if not self.config.gitlab_url:
+                print("Error: GITLAB_URL not set", file=sys.stderr)
+                sys.exit(1)
+            if not self.config.gitlab_token:
+                print("Error: GITLAB_TOKEN not set", file=sys.stderr)
+                sys.exit(1)
+            output_format = getattr(args, "format", None) or self.config.default_format
+            self.code_search_cmd.handle(self.config, args, output_format)
             return
 
         if args.area in ["pipeline", "job", "mr", "merge-request", "branch"]:
