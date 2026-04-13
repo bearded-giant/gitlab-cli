@@ -55,7 +55,7 @@ class Config:
         """Detect GitLab project path from git remote URL"""
         if self._detected_project is not None:
             return self._detected_project
-            
+
         try:
             result = subprocess.run(
                 ['git', 'remote', 'get-url', 'origin'],
@@ -63,37 +63,37 @@ class Config:
                 text=True,
                 timeout=2
             )
-            
+
             if result.returncode == 0:
                 remote_url = result.stdout.strip()
-                
+
                 # Only auto-detect if the remote URL matches our configured GitLab URL
                 if self.gitlab_url:
                     # Extract domain from gitlab_url
                     import urllib.parse
                     gitlab_domain = urllib.parse.urlparse(self.gitlab_url).netloc
-                    
+
                     # Check if remote URL contains our GitLab domain
                     if gitlab_domain not in remote_url:
                         self._detected_project = ""  # Not our GitLab instance
                         return None
-                
+
                 # Match SSH format: git@gitlab.com:group/project.git or with nested groups
                 # Handles: git@gitlab.rechargeapps.net:engineering/merchant-analytics/merchant-analytics.git
                 ssh_match = re.match(r'git@[^:]+:(.+?)(?:\.git)?$', remote_url)
                 if ssh_match:
                     self._detected_project = ssh_match.group(1)
                     return self._detected_project
-                
+
                 # Match HTTPS format: https://gitlab.com/group/project.git or with nested groups
                 https_match = re.match(r'https?://[^/]+/(.+?)(?:\.git)?/?$', remote_url)
                 if https_match:
                     self._detected_project = https_match.group(1)
                     return self._detected_project
-                    
+
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
-        
+
         self._detected_project = ""  # Cache negative result
         return None
     

@@ -4,21 +4,31 @@ A command-line tool for exploring GitLab pipelines, jobs, merge requests, and co
 
 ## Installation
 
-### Install with pipx (Recommended)
+Install with pipx (global `gl` on your PATH):
+
 ```bash
-brew install pipx  # macOS
+brew install pipx           # macOS
 pipx ensurepath
 git clone <repo-url>
 cd gitlab-cli
-pipx install -e .
+make install                # pipx install -e .
 ```
 
-### Install from source
-```bash
-git clone <repo-url>
-cd gitlab-cli
-pip install -e .
-```
+Other make targets:
+
+| Target | Action |
+|---|---|
+| `make install` | pipx editable install |
+| `make reinstall` | pipx uninstall + install (refresh entry points) |
+| `make upgrade` | `pipx upgrade gitlab-cli-explorer` |
+| `make uninstall` | remove the pipx install |
+| `make dev` | `pip install -e .` (for a venv, not global) |
+| `make build` | build sdist + wheel |
+| `make test` | run manual test scripts |
+| `make completions` | install bash/zsh completions |
+| `make clean` | clear build artifacts and `__pycache__` |
+
+`make help` prints the same list.
 
 ## Configuration
 

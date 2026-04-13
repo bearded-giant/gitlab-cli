@@ -510,14 +510,21 @@ class MRContextCommand(BaseCommand):
                 output = {
                     "discussions": [
                         {
-                            "id": d.id,
+                            "id": d.attributes["id"],
                             "notes": [
                                 {
+                                    "id": n.get("id"),
                                     "author": n["author"]["username"],
                                     "body": n["body"],
                                     "created_at": n["created_at"],
+                                    "updated_at": n.get("updated_at"),
+                                    "system": n.get("system", False),
+                                    "resolvable": n.get("resolvable", False),
+                                    "resolved": n.get("resolved", False),
+                                    "type": n.get("type"),
+                                    "position": n.get("position"),
                                 }
-                                for n in d.notes
+                                for n in d.attributes.get("notes", [])
                             ],
                         }
                         for d in discussions
@@ -529,7 +536,7 @@ class MRContextCommand(BaseCommand):
                 print("-" * 80)
 
                 for d in discussions:
-                    for note in d.notes:
+                    for note in d.attributes.get("notes", []):
                         author = note["author"]["username"]
                         created = note["created_at"][:19].replace("T", " ")
                         body = note["body"]
