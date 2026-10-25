@@ -541,6 +541,15 @@ class PipelineCLI:
         project = self.explorer.project
         branch_url = f"{project.web_url}/-/tree/{args.branch_name}"
 
+        if getattr(args, "format", None) == "json":
+            print(json.dumps({
+                "branch": args.branch_name,
+                "branch_url": branch_url,
+                "state": args.state,
+                "mrs": mrs,
+            }, indent=2, default=str))
+            return
+
         print(f"\nBranch: {args.branch_name}")
         print(f"BRANCH_URL: {branch_url}")
         print()
