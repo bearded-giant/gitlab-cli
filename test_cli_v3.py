@@ -13,45 +13,39 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from gitlab_cli.cli_v3 import GitLabCLIv3
 
-# Test parsing various command formats
 cli = GitLabCLIv3()
 
+# (argv, expected parsed attributes)
 test_commands = [
-    # Jobs commands
-    ["jobs", "123456"],
-    ["jobs", "123456,789012"],
-    ["jobs", "detail", "123456"],
-    ["jobs", "123456", "--failures"],
-    # Pipelines commands
-    ["pipelines", "567890"],
-    ["pipelines", "567890,567891"],
-    ["pipelines", "detail", "567890"],
-    ["pipelines", "567890", "--failed"],
-    # MRs commands
-    ["mrs", "5678"],
-    ["mrs", "5678,5679"],
-    ["mrs", "detail", "5678"],
-    ["mrs", "5678", "--pipelines"],
+    (["job", "123456"], {"area": "job", "action": "123456"}),
+    (["job", "123456,789012"], {"area": "job", "action": "123456,789012"}),
+    (["job", "detail", "123456"], {"area": "job", "action": "detail", "job_id": "123456"}),
+    (["job", "123456", "--failures"], {"area": "job", "action": "123456", "failures": True}),
+    (["pipeline", "567890"], {"area": "pipeline", "action": "567890"}),
+    (["pipeline", "567890,567891"], {"area": "pipeline", "action": "567890,567891"}),
+    (["pipeline", "detail", "567890"], {"area": "pipeline", "action": "detail", "pipeline_id": "567890"}),
+    (["pipeline", "567890", "--failed"], {"area": "pipeline", "action": "567890", "failed": True}),
+    (["mr", "5678"], {"area": "mr", "mr_id": "5678"}),
+    (["mr", "5678", "diff"], {"area": "mr", "mr_id": "5678", "resource": "diff"}),
+    (["merge-request", "5678", "discussion"], {"mr_id": "5678", "resource": "discussion"}),
+    (["branch", "feature-x", "mr", "--format", "json"], {"area": "branch", "branch_or_resource": "feature-x", "resource": "mr", "format": "json"}),
 ]
 
 print("Testing command parsing...\n")
-for cmd in test_commands:
-    sys.argv = ["gl"] + cmd
+failed = 0
+for cmd, expected in test_commands:
     try:
-        parser = cli.create_parser()
-        args = parser.parse_args(cmd)
+        args = cli.create_parser().parse_args(cmd)
+        wrong = {k: getattr(args, k, None) for k, v in expected.items() if getattr(args, k, None) != v}
+    except SystemExit:
+        wrong = {"parse": "argparse rejected it"}
+    if wrong:
+        failed += 1
+        print(f"✗ {' '.join(cmd)}: {wrong}")
+    else:
         print(f"✓ {' '.join(cmd)}")
-        print(f"  Parsed: area={args.area}", end="")
-        if args.area == "jobs":
-            print(f", job_ids={args.job_ids}, detail_id={args.detail_id}")
-        elif args.area == "pipelines":
-            print(f", pipeline_ids={args.pipeline_ids}, detail_id={args.detail_id}")
-        elif args.area == "mrs":
-            print(f", mr_ids={args.mr_ids}, detail_id={args.detail_id}")
-        else:
-            print()
-    except Exception as e:
-        print(f"✗ {' '.join(cmd)}: {e}")
 
+if failed:
+    print(f"\n{failed} command format(s) failed")
+    sys.exit(1)
 print("\nAll command formats parse correctly!")
-
